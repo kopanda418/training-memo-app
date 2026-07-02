@@ -3,8 +3,11 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from './db'
 import {
   addSet,
+  addTag,
+  copyPreviousSession,
   deleteSet,
   getDay,
+  getLastSet,
   listHistory,
   listLocations,
   listSetsByDate,
@@ -92,5 +95,55 @@ describe('setDayLocation / listLocations', () => {
     await setDayLocation('2026-07-03', 'ジム')
     await setDayLocation('2026-07-03', '')
     expect((await getDay('2026-07-03'))?.locationId).toBeUndefined()
+  })
+})
+
+describe('getLastSet', () => {
+  it('種目×タグの直近セットを返す(同日なら orderInDay が最後のもの)', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 90, reps: 8 })
+    await addSet({ date: '2026-07-02', exerciseId: ex.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-02', exerciseId: ex.id, weight: 105, reps: 3 })
+
+    expect((await getLastSet(ex.id))?.weight).toBe(105)
+    expect((await getLastSet(ex.id, undefined, '2026-07-01'))?.weight).toBe(90)
+    expect(await getLastSet('missing-id')).toBeUndefined()
+  })
+})
+
+describe('copyPreviousSession(前回コピー)', () => {
+  it('前回の日の全セットを対象日の末尾にコピーする', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    const ex2 = (await db.exercises.toArray())[1]
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 4 })
+    // 別種目・後日の記録は無関係
+    await addSet({ date: '2026-07-02', exerciseId: ex2.id, weight: 50, reps: 10 })
+    await addSet({ date: '2026-07-03', exerciseId: ex2.id, weight: 50, reps: 10 })
+
+    const copied = await copyPreviousSession('2026-07-03', ex.id)
+    expect(copied).toBe(2)
+
+    const sets = await listSetsByDate('2026-07-03')
+    expect(sets).toHaveLength(3)
+    expect(sets.map((s) => s.orderInDay)).toEqual([0, 1, 2])
+    expect(sets[1].weight).toBe(100)
+    expect(sets[1].reps).toBe(5)
+  })
+
+  it('前回記録がなければ 0 を返して何もしない', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    expect(await copyPreviousSession('2026-07-03', ex.id)).toBe(0)
+    expect(await listSetsByDate('2026-07-03')).toHaveLength(0)
+  })
+})
+
+describe('addTag', () => {
+  it('新規タグは連番 sortOrder で追加され、同名は再利用される', async () => {
+    const created = await addTag('リハビリ')
+    expect(created.sortOrder).toBe(3) // デフォルト3種の後ろ
+    const again = await addTag(' リハビリ ')
+    expect(again.id).toBe(created.id)
+    expect(await db.tags.count()).toBe(4)
   })
 })

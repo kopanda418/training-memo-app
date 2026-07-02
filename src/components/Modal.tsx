@@ -1,0 +1,30 @@
+import type { ReactNode } from 'react'
+
+interface ModalProps {
+  open: boolean
+  onClose: () => void
+  title?: string
+  children: ReactNode
+}
+
+/** 画面下から出るボトムシート型モーダル */
+export function Modal({ open, onClose, title, children }: ModalProps) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+      <button
+        type="button"
+        aria-label="閉じる"
+        className="absolute inset-0 bg-black/40"
+        onClick={onClose}
+      />
+      <div
+        className="relative max-h-[85dvh] overflow-y-auto rounded-t-2xl bg-white p-4 dark:bg-slate-800"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+      >
+        {title && <h2 className="mb-3 text-base font-bold">{title}</h2>}
+        {children}
+      </div>
+    </div>
+  )
+}

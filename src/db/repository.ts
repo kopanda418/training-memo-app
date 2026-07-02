@@ -1,5 +1,5 @@
 import { db } from './db'
-import { NO_TAG, type Day, type WeightUnit, type WorkoutSet } from './types'
+import { NO_TAG, type Day, type Tag, type WeightUnit, type WorkoutSet } from './types'
 
 export interface NewSetInput {
   date: string
@@ -108,4 +108,73 @@ export async function setDayLocation(date: string, name: string): Promise<void> 
 export async function listLocations() {
   const locations = await db.locations.toArray()
   return locations.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+}
+
+/** 種目×タグの直近セット(新規セットのプリフィル用)。beforeOrOn を渡すとその日以前に限定 */
+export async function getLastSet(
+  exerciseId: string,
+  tagId: string = NO_TAG,
+  beforeOrOn?: string,
+): Promise<WorkoutSet | undefined> {
+  const history = await db.sets.where('[exerciseId+tagId]').equals([exerciseId, tagId]).toArray()
+  const candidates = beforeOrOn ? history.filter((s) => s.date <= beforeOrOn) : history
+  if (!candidates.length) return undefined
+  return candidates.sort((a, b) =>
+    a.date === b.date ? a.orderInDay - b.orderInDay : a.date.localeCompare(b.date),
+  )[candidates.length - 1]
+}
+
+/**
+ * 種目×タグの「前回(targetDate より前の直近の日)」の全セットを targetDate 末尾にコピーする。
+ * コピーしたセット数を返す(前回記録がなければ 0)
+ */
+export async function copyPreviousSession(
+  targetDate: string,
+  exerciseId: string,
+  tagId: string = NO_TAG,
+): Promise<number> {
+  return db.transaction('rw', [db.sets, db.days], async () => {
+    const history = await db.sets.where('[exerciseId+tagId]').equals([exerciseId, tagId]).toArray()
+    const prevDates = history.filter((s) => s.date < targetDate).map((s) => s.date)
+    if (!prevDates.length) return 0
+    const sourceDate = prevDates.sort()[prevDates.length - 1]
+    const sourceSets = history
+      .filter((s) => s.date === sourceDate)
+      .sort((a, b) => a.orderInDay - b.orderInDay)
+
+    const existing = await db.sets.where('date').equals(targetDate).toArray()
+    let order = existing.length ? Math.max(...existing.map((s) => s.orderInDay)) + 1 : 0
+    const now = Date.now()
+    await db.sets.bulkAdd(
+      sourceSets.map((s) => ({
+        ...s,
+        id: crypto.randomUUID(),
+        date: targetDate,
+        orderInDay: order++,
+        createdAt: now,
+      })),
+    )
+    await ensureDay(targetDate)
+    return sourceSets.length
+  })
+}
+
+/** タグを追加する。同名(トリム後)が既にあればそれを返す */
+export async function addTag(name: string): Promise<Tag> {
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error('タグ名が空です')
+  return db.transaction('rw', [db.tags], async () => {
+    const found = await db.tags.where('name').equals(trimmed).first()
+    if (found) return found
+    const all = await db.tags.toArray()
+    const tag: Tag = {
+      id: crypto.randomUUID(),
+      name: trimmed,
+      sortOrder: all.length ? Math.max(...all.map((t) => t.sortOrder)) + 1 : 0,
+      isArchived: false,
+      createdAt: Date.now(),
+    }
+    await db.tags.add(tag)
+    return tag
+  })
 }
