@@ -11,6 +11,10 @@
 html,
 body {
   height: 100%;
+  /* ページ自体はスクロールさせない(スクロールは main 内のみ)。
+     セーフエリアの padding は App のルートコンテナ内側で確保する:
+     body 側に足すと h-dvh と合算されて画面より縦長になる(iPhone 実機で確認済みのバグ) */
+  overflow: hidden;
   /* iOS でのバウンス・ダブルタップズームを抑える */
   overscroll-behavior: none;
   touch-action: manipulation;
@@ -18,6 +22,4 @@ body {
 
 body {
   @apply bg-white text-slate-900 antialiased dark:bg-slate-900 dark:text-slate-100;
-  /* iPhone のノッチ・ホームバーを避ける */
-  padding-top: env(safe-area-inset-top);
 }
