@@ -1,1 +1,0 @@
-{"root":["./src/main.tsx","./src/app/app.tsx","./src/app/tabbar.tsx","./src/features/analytics/analyticspage.tsx","./src/features/history/historypage.tsx","./src/features/record/recordpage.tsx","./src/features/settings/settingspage.tsx","./src/lib/onerepmax.test.ts","./src/lib/onerepmax.ts"],"version":"6.0.3"}
