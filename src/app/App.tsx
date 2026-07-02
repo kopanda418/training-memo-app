@@ -8,10 +8,7 @@ import { SettingsPage } from '../features/settings/SettingsPage'
 export default function App() {
   return (
     <HashRouter>
-      <div
-        className="flex h-dvh flex-col"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-      >
+      <div className="flex h-dvh flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <main className="flex-1 overflow-y-auto">
           <Routes>
             <Route path="/" element={<Navigate to="/record" replace />} />

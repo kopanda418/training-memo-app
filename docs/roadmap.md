@@ -4,7 +4,7 @@
 
 ## Ver 1.0 までのマイルストーン
 
-### M0: プロジェクト基盤 ⬜
+### M0: プロジェクト基盤 ✅ (2026-07-03)
 
 - Vite + React + TypeScript (strict) + Tailwind の雛形
 - ESLint / Prettier / Vitest 設定、`npm run dev|build|test|lint` が通る
@@ -13,7 +13,7 @@
 - 下部タブ 4 画面(中身は空)+ hash ルーティング
 - **完了条件: iPhone のホーム画面に追加して起動でき、機内モードでも開ける**
 
-### M1: データ層 ⬜
+### M1: データ層 ✅ (2026-07-03)
 
 - Dexie スキーマ v1(architecture.md の全テーブル)
 - repository 関数(セット追加/更新/削除、日の取得、種目×タグの履歴取得)+ ユニットテスト
