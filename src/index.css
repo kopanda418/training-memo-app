@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+/* ダークモードは <html> の .dark クラスで切り替える(class 戦略) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-surface: #ffffff;
+  --color-surface-dark: #0f172a;
+}
+
+html,
+body {
+  height: 100%;
+  /* iOS でのバウンス・ダブルタップズームを抑える */
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+body {
+  @apply bg-white text-slate-900 antialiased dark:bg-slate-900 dark:text-slate-100;
+  /* iPhone のノッチ・ホームバーを避ける */
+  padding-top: env(safe-area-inset-top);
+}
