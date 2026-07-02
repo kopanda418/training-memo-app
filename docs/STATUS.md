@@ -4,15 +4,13 @@
 
 ## 現在地
 
-- **フェーズ**: M0(プロジェクト基盤)実装済み。デプロイのみ未完
-- **作業中マイルストーン**: M0 — 残タスクは「GitHub への push と Pages デプロイ確認」だけ
+- **フェーズ**: M0(プロジェクト基盤)実装・デプロイ完了。公開 URL: https://kopanda418.github.io/training-memo-app/ (HTTP 200 確認済み)
+- **作業中マイルストーン**: M0 — 残タスクは実機 iPhone での確認のみ
 
 ## 次にやること
 
-1. **[ユーザー待ち]** gh トークンに `workflow` スコープがなく push が拒否された。ユーザーに `gh auth refresh -h github.com -s workflow` を実行してもらう
-2. `git push -u origin main` → Actions の実行を `gh run watch` で確認 → https://kopanda418.github.io/training-memo-app/ が開けることを確認
-3. 実機 iPhone でホーム画面追加 → 機内モードで起動確認(ユーザーに依頼)→ M0 完了、roadmap.md のチェックを ✅ に
-4. 次は M1(データ層): Dexie スキーマ v1 + repository + エクスポート/インポート
+1. **[ユーザー待ち]** 実機 iPhone で公開 URL を開き、共有 → ホーム画面に追加 → 機内モードで起動できるか確認してもらう → OK なら roadmap.md の M0 を ✅ に
+2. 次は M1(データ層): Dexie スキーマ v1(architecture.md 参照)+ repository 関数 + テスト + JSON エクスポート/インポート + デフォルト種目マスタ。`npm install dexie dexie-react-hooks` から始める
 
 ## 申し送り・注意点
 
@@ -22,10 +20,12 @@
 - GitHub リポジトリは https://github.com/kopanda418/training-memo-app (public。Pages の無料利用に public が必要)
 - eslint-plugin-react-hooks v7 は flat config を `configs.flat.recommended` で参照する(`recommended-latest` はレガシー形式でエラーになる)
 - PowerShell 5.1 に日本語入りスクリプトを渡すと文字コード誤読で壊れる。一時 .ps1 は ASCII のみで書く
+- Pages の有効化は Actions の `configure-pages` (enablement: true) では権限不足で失敗する。`gh api -X POST repos/kopanda418/training-memo-app/pages -f build_type=workflow` で有効化済み(一度きりの作業、再実行不要)
+- デプロイは main への push で自動。状態確認は `gh run list` / `gh run watch <id>`
 
 ## セッション履歴
 
-| 日付       | 内容                                                                                            |
-| ---------- | ----------------------------------------------------------------------------------------------- |
-| 2026-07-03 | 要件定義・技術設計・開発計画・体制ドキュメント作成。git リポジトリ初期化                        |
-| 2026-07-03 | M0 実装(雛形・PWA・タブ4画面・CI/CD)。lint/test/build 通過。push は workflow スコープ不足で保留 |
+| 日付       | 内容                                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-03 | 要件定義・技術設計・開発計画・体制ドキュメント作成。git リポジトリ初期化                                              |
+| 2026-07-03 | M0 実装(雛形・PWA・タブ4画面・CI/CD)。lint/test/build 通過。Pages デプロイ成功、公開 URL 応答確認。残りは実機確認のみ |
