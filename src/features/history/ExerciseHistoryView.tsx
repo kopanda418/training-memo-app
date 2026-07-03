@@ -5,6 +5,7 @@ import { db } from '../../db/db'
 import { useMasters } from '../../db/hooks'
 import { NO_TAG, type WorkoutSet } from '../../db/types'
 import { formatDateLabel, todayString } from '../../lib/date'
+import { estimateOneRepMax } from '../../lib/oneRepMax'
 import { ExercisePicker } from '../record/ExercisePicker'
 
 /** タグフィルタ: 'all' はすべて、NO_TAG はタグなしのみ、それ以外はタグ ID */
@@ -112,22 +113,31 @@ export function ExerciseHistoryView() {
           </button>
           <ul className="flex flex-col gap-0.5">
             {group.sets.map((s, i) => (
-              <li key={s.id} className="flex items-center gap-2 text-sm">
-                <span className="w-5 text-center text-xs text-slate-400">{i + 1}</span>
-                <span className="font-bold">
-                  {s.weight}
-                  {s.unit} × {s.reps}回
-                </span>
-                {s.isAssisted && (
-                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                    補助
+              <li key={s.id} className="text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 text-center text-xs text-slate-400">{i + 1}</span>
+                  <span className="font-bold">
+                    {s.weight}
+                    {s.unit} × {s.reps}回
                   </span>
-                )}
-                {tagFilter === 'all' && tagName(s.tagId) && (
-                  <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300">
-                    {tagName(s.tagId)}
+                  {s.targetReps != null && (
+                    <span className="text-xs text-slate-400">(目標{s.targetReps})</span>
+                  )}
+                  {s.attribute && (
+                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                      {s.attribute}
+                    </span>
+                  )}
+                  {tagFilter === 'all' && tagName(s.tagId) && (
+                    <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300">
+                      {tagName(s.tagId)}
+                    </span>
+                  )}
+                  <span className="ml-auto text-[10px] text-slate-400">
+                    1RM {Math.round(estimateOneRepMax(s.weight, s.reps) * 10) / 10}kg
                   </span>
-                )}
+                </div>
+                {s.memo && <p className="pl-7 text-xs text-slate-400">{s.memo}</p>}
               </li>
             ))}
           </ul>

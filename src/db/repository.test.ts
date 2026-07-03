@@ -11,8 +11,10 @@ import {
   listHistory,
   listLocations,
   listRecordedDates,
+  listSetAttributes,
   listSetsByDate,
   setDayLocation,
+  setSetAttribute,
   transferSets,
   updateSet,
 } from './repository'
@@ -211,6 +213,29 @@ describe('transferSets(日付間コピー/移動)', () => {
     expect(await transferSets({ fromDate: '2026-07-09', toDate: '2026-07-10', mode: 'move' })).toBe(
       0,
     )
+  })
+})
+
+describe('setSetAttribute / listSetAttributes(属性バンク)', () => {
+  it('属性を設定するとバンクに登録され、同名は再利用・解除もできる', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    const s1 = await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
+    const s2 = await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
+
+    await setSetAttribute(s1.id, 'ベルトなし')
+    await setSetAttribute(s2.id, ' ベルトなし ')
+    expect((await db.sets.get(s1.id))?.attribute).toBe('ベルトなし')
+    expect((await db.sets.get(s2.id))?.attribute).toBe('ベルトなし')
+    expect(await db.setAttributes.count()).toBe(1)
+
+    await setSetAttribute(s2.id, 'RPE9')
+    const bank = await listSetAttributes()
+    expect(bank.map((a) => a.name)).toEqual(['RPE9', 'ベルトなし']) // 最近使った順
+    expect(bank).toHaveLength(2)
+
+    await setSetAttribute(s1.id, undefined)
+    expect((await db.sets.get(s1.id))?.attribute).toBeUndefined()
+    expect(await db.setAttributes.count()).toBe(2) // バンクは残る
   })
 })
 

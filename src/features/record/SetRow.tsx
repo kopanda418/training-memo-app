@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { CommitInput } from '../../components/CommitInput'
-import { deleteSet, updateSet } from '../../db/repository'
-import { useSetting } from '../../db/settings'
+import { deleteSet, setSetAttribute, updateSet } from '../../db/repository'
+import { DEFAULT_QUICK_SET_ATTRIBUTES, useSetting } from '../../db/settings'
 import type { WorkoutSet } from '../../db/types'
 import { estimateOneRepMax } from '../../lib/oneRepMax'
+import { AttributePicker } from './AttributePicker'
 
 interface SetRowProps {
   set: WorkoutSet
@@ -47,7 +48,11 @@ const numBoxClass =
 
 export function SetRow({ set, index, prevSet }: SetRowProps) {
   const bodyWeight = useSetting<number>('bodyWeight')
+  const quickAttrs = (
+    useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
+  ).filter((q) => q.trim() !== '')
   const [hint, setHint] = useState<string | null>(null)
+  const [attrPickerOpen, setAttrPickerOpen] = useState(false)
 
   const oneRm = estimateOneRepMax(set.weight, set.reps)
 
@@ -141,12 +146,50 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
           placeholder="メモ"
           onCommit={(t) => void updateSet(set.id, { memo: t.trim() || undefined })}
         />
+        {set.attribute ? (
+          <button
+            type="button"
+            className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300"
+            onClick={() => setAttrPickerOpen(true)}
+          >
+            {set.attribute}
+          </button>
+        ) : (
+          <div className="flex shrink-0 items-center gap-1">
+            {quickAttrs.map((q) => (
+              <button
+                key={q}
+                type="button"
+                className="rounded-full border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700"
+                onClick={() => void setSetAttribute(set.id, q)}
+              >
+                {q}
+              </button>
+            ))}
+            <button
+              type="button"
+              aria-label="属性を選択"
+              className="rounded-full border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700"
+              onClick={() => setAttrPickerOpen(true)}
+            >
+              ＋
+            </button>
+          </div>
+        )}
         {oneRm > 0 && (
           <span className="shrink-0 text-[10px] text-slate-400">
             1RM {Math.round(oneRm * 10) / 10}kg
           </span>
         )}
       </div>
+      {attrPickerOpen && (
+        <AttributePicker
+          open
+          current={set.attribute}
+          onClose={() => setAttrPickerOpen(false)}
+          onSelect={(name) => void setSetAttribute(set.id, name)}
+        />
+      )}
     </div>
   )
 }

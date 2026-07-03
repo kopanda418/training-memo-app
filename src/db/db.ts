@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import { buildDefaultExercises, buildDefaultTags } from './seed'
-import type { Day, Exercise, Location, Setting, Tag, WorkoutSet } from './types'
+import type { Day, Exercise, Location, SetAttribute, Setting, Tag, WorkoutSet } from './types'
 
 /**
  * スキーマ変更時は version(n+1).stores(...).upgrade(...) を「追加」し、
@@ -13,6 +13,7 @@ export class TrainingMemoDB extends Dexie {
   sets!: Table<WorkoutSet, string>
   locations!: Table<Location, string>
   settings!: Table<Setting, string>
+  setAttributes!: Table<SetAttribute, string>
 
   constructor() {
     super('training-memo')
@@ -24,6 +25,22 @@ export class TrainingMemoDB extends Dexie {
       locations: 'id, name',
       settings: 'key',
     })
+    // v2: セット属性バンクを追加し、旧「補助」フラグを属性へ移行
+    this.version(2)
+      .stores({
+        setAttributes: 'id, name',
+      })
+      .upgrade(async (tx) => {
+        const sets = tx.table<WorkoutSet, string>('sets')
+        const assisted = await sets.filter((s) => s.isAssisted === true && !s.attribute).toArray()
+        if (assisted.length === 0) return
+        await Promise.all(assisted.map((s) => sets.update(s.id, { attribute: '補助' })))
+        await tx.table<SetAttribute, string>('setAttributes').add({
+          id: crypto.randomUUID(),
+          name: '補助',
+          lastUsedAt: Date.now(),
+        })
+      })
     // 初回作成時のみデフォルトマスタを投入
     this.on('populate', () => {
       void this.exercises.bulkAdd(buildDefaultExercises())

@@ -1,5 +1,5 @@
 import { db } from './db'
-import type { Day, Exercise, Location, Setting, Tag, WorkoutSet } from './types'
+import type { Day, Exercise, Location, SetAttribute, Setting, Tag, WorkoutSet } from './types'
 
 /** エクスポート JSON の形式バージョン。互換性が壊れる変更をしたら上げる */
 export const BACKUP_FORMAT_VERSION = 1
@@ -15,6 +15,8 @@ export interface BackupFile {
     sets: WorkoutSet[]
     locations: Location[]
     settings: Setting[]
+    /** v2 で追加(旧バックアップには無いので省略可) */
+    setAttributes?: SetAttribute[]
   }
 }
 
@@ -31,6 +33,7 @@ export async function exportData(): Promise<BackupFile> {
       sets: await db.sets.toArray(),
       locations: await db.locations.toArray(),
       settings: await db.settings.toArray(),
+      setAttributes: await db.setAttributes.toArray(),
     },
   }))
 }
@@ -46,6 +49,7 @@ export async function importData(backup: unknown): Promise<void> {
     await db.sets.bulkAdd(parsed.data.sets)
     await db.locations.bulkAdd(parsed.data.locations)
     await db.settings.bulkAdd(parsed.data.settings)
+    await db.setAttributes.bulkAdd(parsed.data.setAttributes ?? [])
   })
 }
 

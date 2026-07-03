@@ -62,6 +62,13 @@ export interface Location {
   lastUsedAt: number
 }
 
+/** セット属性の入力候補(属性バンク) */
+export interface SetAttribute {
+  id: string
+  name: string
+  lastUsedAt: number
+}
+
 export interface Setting {
   key: string
   value: unknown

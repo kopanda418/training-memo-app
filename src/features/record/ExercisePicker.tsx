@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Modal } from '../../components/Modal'
 import { db } from '../../db/db'
 import { addTag } from '../../db/repository'
+import { useSetting } from '../../db/settings'
 import { BODY_PARTS, NO_TAG, type BodyPart, type Exercise } from '../../db/types'
 
 interface ExercisePickerProps {
@@ -17,19 +18,30 @@ interface ExercisePickerProps {
 export function ExercisePicker({ open, onClose, onDone, withTagStep = true }: ExercisePickerProps) {
   const [bodyPart, setBodyPart] = useState<BodyPart>('胸')
   const [selected, setSelected] = useState<Exercise | null>(null)
-  const [newTagName, setNewTagName] = useState('')
+  const [tagQuery, setTagQuery] = useState('')
 
   const exercises = useLiveQuery(() => db.exercises.orderBy('sortOrder').toArray(), [])
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
+  const quickTagIds = useSetting<string[]>('quickExerciseTagIds')
+
+  const activeTags = tags?.filter((t) => !t.isArchived) ?? []
+  // クイックボタン: 設定があればその 3 つ、なければ先頭 3 タグ
+  const quickTags = quickTagIds
+    ? quickTagIds.map((id) => activeTags.find((t) => t.id === id)).filter((t) => t !== undefined)
+    : activeTags.slice(0, 3)
+
+  const trimmedQuery = tagQuery.trim()
+  const filteredTags = activeTags.filter((t) => !trimmedQuery || t.name.includes(trimmedQuery))
+  const hasExactTag = activeTags.some((t) => t.name === trimmedQuery)
 
   const finish = (exerciseId: string, tagId: string) => {
     onDone(exerciseId, tagId)
     onClose()
   }
 
-  const handleCreateTag = async () => {
-    if (!selected || !newTagName.trim()) return
-    const tag = await addTag(newTagName)
+  const handleCreateTag = async (name: string) => {
+    if (!selected || !name.trim()) return
+    const tag = await addTag(name)
     finish(selected.id, tag.id)
   }
 
@@ -90,17 +102,35 @@ export function ExercisePicker({ open, onClose, onDone, withTagStep = true }: Ex
             </button>
             <span className="text-sm font-bold">{selected.name}</span>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <button
-              type="button"
-              className={listButtonClass}
-              onClick={() => finish(selected.id, NO_TAG)}
-            >
-              タグなし
-            </button>
-            {tags
-              ?.filter((t) => !t.isArchived)
-              .map((tag) => (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 active:bg-slate-200 dark:bg-slate-700 dark:text-slate-300"
+                onClick={() => finish(selected.id, NO_TAG)}
+              >
+                タグなし
+              </button>
+              {quickTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className="rounded-full bg-sky-100 px-3 py-1.5 text-xs font-bold text-sky-700 active:bg-sky-200 dark:bg-sky-900 dark:text-sky-300"
+                  onClick={() => finish(selected.id, tag.id)}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700"
+              placeholder="タグを検索 / 新しいタグ名を入力"
+              value={tagQuery}
+              onChange={(e) => setTagQuery(e.target.value)}
+            />
+            <div className="flex max-h-60 flex-col gap-1.5 overflow-y-auto">
+              {filteredTags.map((tag) => (
                 <button
                   key={tag.id}
                   type="button"
@@ -110,22 +140,15 @@ export function ExercisePicker({ open, onClose, onDone, withTagStep = true }: Ex
                   {tag.name}
                 </button>
               ))}
-            <div className="mt-2 flex gap-2">
-              <input
-                type="text"
-                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700"
-                placeholder="新しいタグ名"
-                value={newTagName}
-                onChange={(e) => setNewTagName(e.target.value)}
-              />
-              <button
-                type="button"
-                className="shrink-0 rounded-lg bg-sky-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-40"
-                disabled={!newTagName.trim()}
-                onClick={() => void handleCreateTag()}
-              >
-                作成して選択
-              </button>
+              {trimmedQuery && !hasExactTag && (
+                <button
+                  type="button"
+                  className="w-full rounded-lg border border-dashed border-sky-400 px-3 py-2.5 text-left text-sm text-sky-600 active:bg-sky-50 dark:text-sky-400"
+                  onClick={() => void handleCreateTag(trimmedQuery)}
+                >
+                  「{trimmedQuery}」を作成して選択
+                </button>
+              )}
             </div>
           </div>
         </>

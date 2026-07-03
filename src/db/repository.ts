@@ -224,6 +224,33 @@ export async function transferSets(options: TransferOptions): Promise<number> {
   })
 }
 
+/** セット属性バンクの入力候補(最近使った順) */
+export async function listSetAttributes() {
+  const attrs = await db.setAttributes.toArray()
+  return attrs.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+}
+
+/**
+ * セットに属性を設定する(undefined / 空文字で解除)。
+ * 新しい属性名は自動でバンクに登録、既存名は lastUsedAt を更新する
+ */
+export async function setSetAttribute(setId: string, name: string | undefined): Promise<void> {
+  const trimmed = name?.trim()
+  await db.transaction('rw', [db.sets, db.setAttributes], async () => {
+    if (!trimmed) {
+      await db.sets.update(setId, { attribute: undefined })
+      return
+    }
+    const found = await db.setAttributes.where('name').equals(trimmed).first()
+    if (found) {
+      await db.setAttributes.update(found.id, { lastUsedAt: Date.now() })
+    } else {
+      await db.setAttributes.add({ id: crypto.randomUUID(), name: trimmed, lastUsedAt: Date.now() })
+    }
+    await db.sets.update(setId, { attribute: trimmed })
+  })
+}
+
 /** タグを追加する。同名(トリム後)が既にあればそれを返す */
 export async function addTag(name: string): Promise<Tag> {
   const trimmed = name.trim()

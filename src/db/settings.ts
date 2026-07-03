@@ -8,6 +8,9 @@ export type SettingKey =
   | 'quickExerciseTagIds' // string[]: 種目タグのクイックボタン(tag id、最大3)
   | 'theme' // 'light' | 'dark' | 'system'
 
+/** セット属性クイックボタンの初期値(設定で変更可能) */
+export const DEFAULT_QUICK_SET_ATTRIBUTES = ['補助', 'RPE8', 'RPE9']
+
 export async function getSetting<T>(key: SettingKey): Promise<T | undefined> {
   const row = await db.settings.get(key)
   return row?.value as T | undefined
