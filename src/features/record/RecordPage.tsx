@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSearchParams } from 'react-router'
-import { db } from '../../db/db'
+import { useMasters } from '../../db/hooks'
 import { listSetsByDate } from '../../db/repository'
-import { NO_TAG, type WorkoutSet } from '../../db/types'
 import { addDays, formatDateLabel, todayString } from '../../lib/date'
+import { groupSetsIntoBlocks, type SetBlock } from '../../lib/groupSets'
 import { ExerciseBlock } from './ExerciseBlock'
 import { ExercisePicker } from './ExercisePicker'
 import { LocationRow } from './LocationRow'
@@ -12,10 +12,6 @@ import { LocationRow } from './LocationRow'
 interface BlockKey {
   exerciseId: string
   tagId: string
-}
-
-interface Block extends BlockKey {
-  sets: WorkoutSet[]
 }
 
 export function RecordPage() {
@@ -27,8 +23,7 @@ export function RecordPage() {
   }
 
   const sets = useLiveQuery(() => listSetsByDate(date), [date])
-  const exercises = useLiveQuery(() => db.exercises.toArray(), [])
-  const tags = useLiveQuery(() => db.tags.toArray(), [])
+  const { exerciseName, tagName } = useMasters()
 
   // 種目選択直後・セット 0 件のブロック(セットが入るまでの仮の器)
   const [emptyBlocks, setEmptyBlocks] = useState<BlockKey[]>([])
@@ -40,31 +35,13 @@ export function RecordPage() {
     setEmptyBlocks([])
   }
 
-  const exerciseName = useMemo(() => {
-    const map = new Map(exercises?.map((e) => [e.id, e.name]))
-    return (id: string) => map.get(id) ?? '(削除された種目)'
-  }, [exercises])
-  const tagName = useMemo(() => {
-    const map = new Map(tags?.map((t) => [t.id, t.name]))
-    return (id: string) => (id === NO_TAG ? undefined : (map.get(id) ?? '(削除されたタグ)'))
-  }, [tags])
-
-  const blocks: Block[] = useMemo(() => {
-    const map = new Map<string, Block>()
-    for (const s of sets ?? []) {
-      const key = `${s.exerciseId}|${s.tagId}`
-      let block = map.get(key)
-      if (!block) {
-        block = { exerciseId: s.exerciseId, tagId: s.tagId, sets: [] }
-        map.set(key, block)
-      }
-      block.sets.push(s)
-    }
+  const blocks: SetBlock[] = useMemo(() => {
+    const grouped = groupSetsIntoBlocks(sets ?? [])
+    const seen = new Set(grouped.map((b) => `${b.exerciseId}|${b.tagId}`))
     for (const b of emptyBlocks) {
-      const key = `${b.exerciseId}|${b.tagId}`
-      if (!map.has(key)) map.set(key, { ...b, sets: [] })
+      if (!seen.has(`${b.exerciseId}|${b.tagId}`)) grouped.push({ ...b, sets: [] })
     }
-    return [...map.values()]
+    return grouped
   }, [sets, emptyBlocks])
 
   const handlePicked = (exerciseId: string, tagId: string) => {

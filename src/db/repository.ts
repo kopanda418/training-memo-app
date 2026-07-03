@@ -159,6 +159,62 @@ export async function copyPreviousSession(
   })
 }
 
+/** 期間内で記録(セット)がある日付の一覧(カレンダーのマーク用) */
+export async function listRecordedDates(fromDate: string, toDate: string): Promise<string[]> {
+  const sets = await db.sets.where('date').between(fromDate, toDate, true, true).toArray()
+  return [...new Set(sets.map((s) => s.date))]
+}
+
+export interface TransferOptions {
+  fromDate: string
+  toDate: string
+  mode: 'copy' | 'move'
+  /** 指定すると、その種目×タグのブロックだけを対象にする(未指定なら日全体) */
+  exerciseId?: string
+  tagId?: string
+}
+
+/**
+ * 記録を別の日へコピー/移動する(日全体または種目×タグ単位)。
+ * 移動元/先は 1 トランザクション。移動でセットが空になった日は days レコードも削除する。
+ * 対象セット数を返す。
+ */
+export async function transferSets(options: TransferOptions): Promise<number> {
+  const { fromDate, toDate, mode, exerciseId } = options
+  const tagId = options.tagId ?? NO_TAG
+  if (fromDate === toDate) return 0
+  return db.transaction('rw', [db.sets, db.days], async () => {
+    let source = await db.sets.where('date').equals(fromDate).toArray()
+    if (exerciseId !== undefined) {
+      source = source.filter((s) => s.exerciseId === exerciseId && s.tagId === tagId)
+    }
+    if (!source.length) return 0
+    source.sort((a, b) => a.orderInDay - b.orderInDay)
+
+    const existing = await db.sets.where('date').equals(toDate).toArray()
+    let order = existing.length ? Math.max(...existing.map((s) => s.orderInDay)) + 1 : 0
+
+    if (mode === 'copy') {
+      const now = Date.now()
+      await db.sets.bulkAdd(
+        source.map((s) => ({
+          ...s,
+          id: crypto.randomUUID(),
+          date: toDate,
+          orderInDay: order++,
+          createdAt: now,
+        })),
+      )
+    } else {
+      await db.sets.bulkPut(source.map((s) => ({ ...s, date: toDate, orderInDay: order++ })))
+      const remaining = await db.sets.where('date').equals(fromDate).count()
+      if (remaining === 0) await db.days.delete(fromDate)
+    }
+    await ensureDay(toDate)
+    return source.length
+  })
+}
+
 /** タグを追加する。同名(トリム後)が既にあればそれを返す */
 export async function addTag(name: string): Promise<Tag> {
   const trimmed = name.trim()

@@ -10,8 +10,10 @@ import {
   getLastSet,
   listHistory,
   listLocations,
+  listRecordedDates,
   listSetsByDate,
   setDayLocation,
+  transferSets,
   updateSet,
 } from './repository'
 import { NO_TAG } from './types'
@@ -135,6 +137,80 @@ describe('copyPreviousSession(前回コピー)', () => {
     const ex = (await db.exercises.toArray())[0]
     expect(await copyPreviousSession('2026-07-03', ex.id)).toBe(0)
     expect(await listSetsByDate('2026-07-03')).toHaveLength(0)
+  })
+})
+
+describe('listRecordedDates', () => {
+  it('期間内でセットがある日付だけを返す', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-15', exerciseId: ex.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-08-01', exerciseId: ex.id, weight: 100, reps: 5 })
+    await setDayLocation('2026-07-20', 'ジム') // セットのない日はマークしない
+
+    const dates = await listRecordedDates('2026-07-01', '2026-07-31')
+    expect(dates.sort()).toEqual(['2026-07-01', '2026-07-15'])
+  })
+})
+
+describe('transferSets(日付間コピー/移動)', () => {
+  it('日全体のコピー: 元の日は残り、対象日の末尾に複製される', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 105, reps: 3 })
+    await addSet({ date: '2026-07-05', exerciseId: ex.id, weight: 60, reps: 12 })
+
+    const n = await transferSets({ fromDate: '2026-07-01', toDate: '2026-07-05', mode: 'copy' })
+    expect(n).toBe(2)
+    expect(await listSetsByDate('2026-07-01')).toHaveLength(2)
+    const target = await listSetsByDate('2026-07-05')
+    expect(target.map((s) => s.weight)).toEqual([60, 100, 105])
+    expect(target.map((s) => s.orderInDay)).toEqual([0, 1, 2])
+  })
+
+  it('日全体の移動: 元の日が空になり days レコードも消える', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
+
+    const n = await transferSets({ fromDate: '2026-07-01', toDate: '2026-07-02', mode: 'move' })
+    expect(n).toBe(1)
+    expect(await listSetsByDate('2026-07-01')).toHaveLength(0)
+    expect(await getDay('2026-07-01')).toBeUndefined()
+    expect(await listSetsByDate('2026-07-02')).toHaveLength(1)
+    expect(await getDay('2026-07-02')).toBeDefined()
+  })
+
+  it('種目×タグ単位の移動: 対象ブロックだけ動き、他は残る', async () => {
+    const [ex, ex2] = await db.exercises.toArray()
+    const [heavy] = await db.tags.toArray()
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, tagId: heavy.id, weight: 120, reps: 3 })
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 80, reps: 10 }) // 同種目タグなし
+    await addSet({ date: '2026-07-01', exerciseId: ex2.id, weight: 50, reps: 10 })
+
+    const n = await transferSets({
+      fromDate: '2026-07-01',
+      toDate: '2026-07-02',
+      mode: 'move',
+      exerciseId: ex.id,
+      tagId: heavy.id,
+    })
+    expect(n).toBe(1)
+    const remaining = await listSetsByDate('2026-07-01')
+    expect(remaining).toHaveLength(2)
+    expect(await getDay('2026-07-01')).toBeDefined() // まだセットが残るので日は消えない
+    expect((await listSetsByDate('2026-07-02'))[0].weight).toBe(120)
+  })
+
+  it('同じ日への転送と空の転送は 0 を返す', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
+    expect(await transferSets({ fromDate: '2026-07-01', toDate: '2026-07-01', mode: 'copy' })).toBe(
+      0,
+    )
+    expect(await transferSets({ fromDate: '2026-07-09', toDate: '2026-07-10', mode: 'move' })).toBe(
+      0,
+    )
   })
 })
 

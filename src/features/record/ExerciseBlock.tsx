@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { TransferModal } from '../../components/TransferModal'
 import { addSet, copyPreviousSession, getLastSet } from '../../db/repository'
 import type { WorkoutSet } from '../../db/types'
 import { SetRow } from './SetRow'
@@ -24,6 +25,7 @@ export function ExerciseBlock({
   onRemoveEmpty,
 }: ExerciseBlockProps) {
   const [message, setMessage] = useState<string | null>(null)
+  const [transferOpen, setTransferOpen] = useState(false)
 
   const showMessage = (text: string) => {
     setMessage(text)
@@ -64,6 +66,16 @@ export function ExerciseBlock({
           >
             前回コピー
           </button>
+          {sets.length > 0 && (
+            <button
+              type="button"
+              aria-label="この種目の記録を別の日へコピー/移動"
+              className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
+              onClick={() => setTransferOpen(true)}
+            >
+              ⋯
+            </button>
+          )}
           {sets.length === 0 && (
             <button
               type="button"
@@ -89,6 +101,16 @@ export function ExerciseBlock({
       >
         ＋ セット追加
       </button>
+      {transferOpen && (
+        <TransferModal
+          open
+          onClose={() => setTransferOpen(false)}
+          title={`「${exerciseName}${tagName ? ` / ${tagName}` : ''}」を別の日へ`}
+          fromDate={date}
+          exerciseId={exerciseId}
+          tagId={tagId}
+        />
+      )}
     </section>
   )
 }

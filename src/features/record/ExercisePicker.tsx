@@ -9,10 +9,12 @@ interface ExercisePickerProps {
   open: boolean
   onClose: () => void
   onDone: (exerciseId: string, tagId: string) => void
+  /** false にするとタグ選択の工程を省き、種目タップで即確定する(履歴画面の種目選択など) */
+  withTagStep?: boolean
 }
 
 /** 部位タブ → 種目 → タグ選択(なし/既存/新規)の 2 段階モーダル */
-export function ExercisePicker({ open, onClose, onDone }: ExercisePickerProps) {
+export function ExercisePicker({ open, onClose, onDone, withTagStep = true }: ExercisePickerProps) {
   const [bodyPart, setBodyPart] = useState<BodyPart>('胸')
   const [selected, setSelected] = useState<Exercise | null>(null)
   const [newTagName, setNewTagName] = useState('')
@@ -62,7 +64,9 @@ export function ExercisePicker({ open, onClose, onDone }: ExercisePickerProps) {
                   key={exercise.id}
                   type="button"
                   className={listButtonClass}
-                  onClick={() => setSelected(exercise)}
+                  onClick={() =>
+                    withTagStep ? setSelected(exercise) : finish(exercise.id, NO_TAG)
+                  }
                 >
                   {exercise.name}
                 </button>
