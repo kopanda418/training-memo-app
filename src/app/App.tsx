@@ -8,8 +8,12 @@ import { SettingsPage } from '../features/settings/SettingsPage'
 export default function App() {
   return (
     <HashRouter>
-      <div className="flex h-dvh flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <main className="flex-1 overflow-y-auto">
+      {/* fixed inset-0 で画面四辺に固定(dvh 依存だと iOS 実機で下部にすき間が出る) */}
+      <div
+        className="fixed inset-0 flex flex-col"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <Routes>
             <Route path="/" element={<Navigate to="/record" replace />} />
             <Route path="/record" element={<RecordPage />} />
