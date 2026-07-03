@@ -1,3 +1,4 @@
+import { groupSetsIntoBlocks } from '../lib/groupSets'
 import { db } from './db'
 import { NO_TAG, type Day, type Tag, type WeightUnit, type WorkoutSet } from './types'
 
@@ -221,6 +222,27 @@ export async function transferSets(options: TransferOptions): Promise<number> {
     }
     await ensureDay(toDate)
     return source.length
+  })
+}
+
+/** 日の中で種目×タグブロックの表示順を 1 つ上/下へ移動する(orderInDay を振り直す) */
+export async function moveBlockInDay(
+  date: string,
+  exerciseId: string,
+  tagId: string,
+  direction: 'up' | 'down',
+): Promise<void> {
+  await db.transaction('rw', [db.sets], async () => {
+    const sets = (await db.sets.where('date').equals(date).toArray()).sort(
+      (a, b) => a.orderInDay - b.orderInDay,
+    )
+    const blocks = groupSetsIntoBlocks(sets)
+    const index = blocks.findIndex((b) => b.exerciseId === exerciseId && b.tagId === tagId)
+    const swapWith = direction === 'up' ? index - 1 : index + 1
+    if (index < 0 || swapWith < 0 || swapWith >= blocks.length) return
+    ;[blocks[index], blocks[swapWith]] = [blocks[swapWith], blocks[index]]
+    let order = 0
+    await db.sets.bulkPut(blocks.flatMap((b) => b.sets.map((s) => ({ ...s, orderInDay: order++ }))))
   })
 }
 

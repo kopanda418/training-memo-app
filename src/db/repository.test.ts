@@ -12,6 +12,7 @@ import {
   listLocations,
   listRecordedDates,
   listSetAttributes,
+  moveBlockInDay,
   listSetsByDate,
   setDayLocation,
   setSetAttribute,
@@ -213,6 +214,27 @@ describe('transferSets(日付間コピー/移動)', () => {
     expect(await transferSets({ fromDate: '2026-07-09', toDate: '2026-07-10', mode: 'move' })).toBe(
       0,
     )
+  })
+})
+
+describe('moveBlockInDay(種目ブロックの並べ替え)', () => {
+  it('ブロック単位で順番が入れ替わり、orderInDay が振り直される', async () => {
+    const [ex1, ex2, ex3] = await db.exercises.toArray()
+    await addSet({ date: '2026-07-03', exerciseId: ex1.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-03', exerciseId: ex1.id, weight: 100, reps: 4 })
+    await addSet({ date: '2026-07-03', exerciseId: ex2.id, weight: 50, reps: 10 })
+    await addSet({ date: '2026-07-03', exerciseId: ex3.id, weight: 30, reps: 15 })
+
+    await moveBlockInDay('2026-07-03', ex2.id, '', 'up')
+    let sets = await listSetsByDate('2026-07-03')
+    expect(sets.map((s) => s.exerciseId)).toEqual([ex2.id, ex1.id, ex1.id, ex3.id])
+    expect(sets.map((s) => s.orderInDay)).toEqual([0, 1, 2, 3])
+
+    // 端では何も起きない
+    await moveBlockInDay('2026-07-03', ex2.id, '', 'up')
+    await moveBlockInDay('2026-07-03', ex3.id, '', 'down')
+    sets = await listSetsByDate('2026-07-03')
+    expect(sets.map((s) => s.exerciseId)).toEqual([ex2.id, ex1.id, ex1.id, ex3.id])
   })
 })
 

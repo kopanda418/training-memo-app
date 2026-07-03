@@ -35,13 +35,14 @@ export function RecordPage() {
     setEmptyBlocks([])
   }
 
-  const blocks: SetBlock[] = useMemo(() => {
+  const { blocks, recordedCount } = useMemo(() => {
     const grouped = groupSetsIntoBlocks(sets ?? [])
+    const recordedCount = grouped.length
     const seen = new Set(grouped.map((b) => `${b.exerciseId}|${b.tagId}`))
     for (const b of emptyBlocks) {
       if (!seen.has(`${b.exerciseId}|${b.tagId}`)) grouped.push({ ...b, sets: [] })
     }
-    return grouped
+    return { blocks: grouped as SetBlock[], recordedCount }
   }, [sets, emptyBlocks])
 
   const handlePicked = (exerciseId: string, tagId: string) => {
@@ -104,7 +105,7 @@ export function RecordPage() {
             下の「＋ 種目を追加」から始めましょう
           </p>
         )}
-        {blocks.map((block) => (
+        {blocks.map((block, i) => (
           <ExerciseBlock
             key={`${block.exerciseId}|${block.tagId}`}
             date={date}
@@ -114,6 +115,8 @@ export function RecordPage() {
             tagName={tagName(block.tagId)}
             sets={block.sets}
             onRemoveEmpty={() => removeEmptyBlock(block)}
+            isFirst={i === 0}
+            isLast={i >= recordedCount - 1}
           />
         ))}
         <button
