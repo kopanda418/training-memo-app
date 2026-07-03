@@ -1,6 +1,14 @@
-/** 部位の一覧。表示順もこの順 */
-export const BODY_PARTS = ['胸', '背中', '脚', '肩', '腕', '腹', 'その他'] as const
-export type BodyPart = (typeof BODY_PARTS)[number]
+/** デフォルトの部位(初期シード用。実体は bodyParts テーブルで、追加可能) */
+export const DEFAULT_BODY_PARTS = ['胸', '背中', '脚', '肩', '腕', '腹', 'その他'] as const
+/** 部位名(bodyParts テーブルの name を参照する自由文字列) */
+export type BodyPart = string
+
+/** 部位マスタ */
+export interface BodyPartRow {
+  id: string
+  name: string
+  sortOrder: number
+}
 
 export type WeightUnit = 'kg' | 'lbs'
 

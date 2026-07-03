@@ -2,10 +2,17 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from './db'
 import {
+  addBodyPart,
+  addExercise,
   addSet,
   addTag,
   copyPreviousSession,
+  deleteExercise,
   deleteSet,
+  deleteSetAttribute,
+  deleteTag,
+  listBodyParts,
+  renameExercise,
   getDay,
   getLastSet,
   listHistory,
@@ -258,6 +265,52 @@ describe('setSetAttribute / listSetAttributes(属性バンク)', () => {
     await setSetAttribute(s1.id, undefined)
     expect((await db.sets.get(s1.id))?.attribute).toBeUndefined()
     expect(await db.setAttributes.count()).toBe(2) // バンクは残る
+  })
+})
+
+describe('マスタ管理(部位・種目・タグ・セット属性)', () => {
+  it('部位を追加でき、デフォルト 7 部位がシードされている', async () => {
+    const before = await listBodyParts()
+    expect(before.map((p) => p.name)).toEqual(['胸', '背中', '脚', '肩', '腕', '腹', 'その他'])
+    const added = await addBodyPart('前腕')
+    const again = await addBodyPart(' 前腕 ') // 同名は再利用
+    expect(again.id).toBe(added.id)
+    const after = await listBodyParts()
+    expect(after[after.length - 1].name).toBe('前腕')
+  })
+
+  it('種目の追加・名前変更・削除(未使用)ができる', async () => {
+    const ex = await addExercise('リストカール', '腕')
+    await renameExercise(ex.id, 'リストカール(ダンベル)')
+    expect((await db.exercises.get(ex.id))?.name).toBe('リストカール(ダンベル)')
+    expect(await deleteExercise(ex.id)).toEqual({ deleted: true })
+    expect(await db.exercises.get(ex.id)).toBeUndefined()
+  })
+
+  it('記録で使用中の種目・タグ・セット属性は削除ブロックされる', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    const [tag] = await db.tags.toArray()
+    const set = await addSet({
+      date: '2026-07-03',
+      exerciseId: ex.id,
+      tagId: tag.id,
+      weight: 100,
+      reps: 5,
+    })
+    await setSetAttribute(set.id, 'RPE9')
+    const attr = (await db.setAttributes.toArray())[0]
+
+    expect((await deleteExercise(ex.id)).deleted).toBe(false)
+    expect((await deleteTag(tag.id)).deleted).toBe(false)
+    expect((await deleteSetAttribute(attr.id)).deleted).toBe(false)
+    expect(await db.exercises.get(ex.id)).toBeDefined()
+    expect(await db.tags.get(tag.id)).toBeDefined()
+    expect(await db.setAttributes.get(attr.id)).toBeDefined()
+
+    // セットを消せば削除できる
+    await deleteSet(set.id)
+    expect((await deleteTag(tag.id)).deleted).toBe(true)
+    expect((await deleteSetAttribute(attr.id)).deleted).toBe(true)
   })
 })
 

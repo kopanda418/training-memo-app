@@ -3,6 +3,8 @@ import { TabBar } from './TabBar'
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage'
 import { HistoryPage } from '../features/history/HistoryPage'
 import { RecordPage } from '../features/record/RecordPage'
+import { AttributeManagerPage } from '../features/settings/AttributeManagerPage'
+import { ExerciseManagerPage } from '../features/settings/ExerciseManagerPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
 
 export default function App() {
@@ -20,6 +22,8 @@ export default function App() {
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/exercises" element={<ExerciseManagerPage />} />
+            <Route path="/settings/attributes" element={<AttributeManagerPage />} />
           </Routes>
         </main>
         <TabBar />

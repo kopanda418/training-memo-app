@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Modal } from '../../components/Modal'
 import { db } from '../../db/db'
-import { addTag } from '../../db/repository'
+import { addTag, listBodyParts } from '../../db/repository'
 import { useSetting } from '../../db/settings'
-import { BODY_PARTS, NO_TAG, type BodyPart, type Exercise } from '../../db/types'
+import { NO_TAG, type Exercise } from '../../db/types'
 
 interface ExercisePickerProps {
   open: boolean
@@ -16,9 +16,15 @@ interface ExercisePickerProps {
 
 /** 部位タブ → 種目 → タグ選択(なし/既存/新規)の 2 段階モーダル */
 export function ExercisePicker({ open, onClose, onDone, withTagStep = true }: ExercisePickerProps) {
-  const [bodyPart, setBodyPart] = useState<BodyPart>('胸')
+  const [bodyPart, setBodyPart] = useState<string>('胸')
   const [selected, setSelected] = useState<Exercise | null>(null)
   const [tagQuery, setTagQuery] = useState('')
+
+  const bodyParts = useLiveQuery(() => listBodyParts(), [])
+  // 選択中の部位がマスタに存在しない場合は先頭へ寄せる(レンダー中の派生 state 調整パターン)
+  if (bodyParts?.length && !bodyParts.some((p) => p.name === bodyPart)) {
+    setBodyPart(bodyParts[0].name)
+  }
 
   const exercises = useLiveQuery(() => db.exercises.orderBy('sortOrder').toArray(), [])
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
@@ -53,18 +59,18 @@ export function ExercisePicker({ open, onClose, onDone, withTagStep = true }: Ex
       {!selected ? (
         <>
           <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
-            {BODY_PARTS.map((part) => (
+            {bodyParts?.map((part) => (
               <button
-                key={part}
+                key={part.id}
                 type="button"
                 className={`shrink-0 rounded-full px-3 py-1.5 text-sm ${
-                  part === bodyPart
+                  part.name === bodyPart
                     ? 'bg-sky-600 font-bold text-white'
                     : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                 }`}
-                onClick={() => setBodyPart(part)}
+                onClick={() => setBodyPart(part.name)}
               >
-                {part}
+                {part.name}
               </button>
             ))}
           </div>

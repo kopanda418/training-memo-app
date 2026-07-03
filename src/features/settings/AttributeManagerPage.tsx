@@ -1,0 +1,86 @@
+import { useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { useNavigate } from 'react-router'
+import { db } from '../../db/db'
+import {
+  deleteSetAttribute,
+  deleteTag,
+  listSetAttributes,
+  type DeleteResult,
+} from '../../db/repository'
+
+/** 種目タグとセット属性の削除(記録で使用中はブロック) */
+export function AttributeManagerPage() {
+  const navigate = useNavigate()
+  const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
+  const attributes = useLiveQuery(() => listSetAttributes(), [])
+  const [message, setMessage] = useState<string | null>(null)
+
+  const handleDelete = async (name: string, run: () => Promise<DeleteResult>) => {
+    const result = await run()
+    if (!result.deleted) {
+      setMessage(`「${name}」は記録 ${result.usedCount} 件で使用中のため削除できません`)
+      setTimeout(() => setMessage(null), 3500)
+    }
+  }
+
+  const rowClass =
+    'flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700'
+
+  return (
+    <div className="flex flex-col gap-4 p-3">
+      <header className="flex items-center gap-2">
+        <button
+          type="button"
+          className="text-sm text-sky-600 dark:text-sky-400"
+          onClick={() => navigate('/settings')}
+        >
+          ‹ 設定
+        </button>
+        <h1 className="text-base font-bold">タグ・セット属性の管理</h1>
+      </header>
+
+      {message && <p className="text-xs text-red-500">{message}</p>}
+
+      <section className="flex flex-col gap-1.5">
+        <h2 className="text-sm font-bold">種目タグ(高重量日 など)</h2>
+        {tags?.map((tag) => (
+          <div key={tag.id} className={rowClass}>
+            <span className="min-w-0 flex-1 truncate">{tag.name}</span>
+            <button
+              type="button"
+              aria-label={`${tag.name}を削除`}
+              className="shrink-0 px-1 text-slate-300 active:text-red-500 dark:text-slate-600"
+              onClick={() => void handleDelete(tag.name, () => deleteTag(tag.id))}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        {tags?.length === 0 && <p className="py-2 text-xs text-slate-400">タグはありません</p>}
+        <p className="text-xs text-slate-400">追加は記録画面の種目選択時にできます</p>
+      </section>
+
+      <section className="flex flex-col gap-1.5">
+        <h2 className="text-sm font-bold">セット属性(RPE9 など)</h2>
+        {attributes?.map((attr) => (
+          <div key={attr.id} className={rowClass}>
+            <span className="min-w-0 flex-1 truncate">{attr.name}</span>
+            <button
+              type="button"
+              aria-label={`${attr.name}を削除`}
+              className="shrink-0 px-1 text-slate-300 active:text-red-500 dark:text-slate-600"
+              onClick={() => void handleDelete(attr.name, () => deleteSetAttribute(attr.id))}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        {attributes?.length === 0 && (
+          <p className="py-2 text-xs text-slate-400">セット属性はありません</p>
+        )}
+        <p className="text-xs text-slate-400">追加はセット行の属性ボタンからできます</p>
+      </section>
+    </div>
+  )
+}

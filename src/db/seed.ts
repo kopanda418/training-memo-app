@@ -1,4 +1,10 @@
-import type { BodyPart, Exercise, Tag } from './types'
+import {
+  DEFAULT_BODY_PARTS,
+  type BodyPart,
+  type BodyPartRow,
+  type Exercise,
+  type Tag,
+} from './types'
 
 const DEFAULT_EXERCISES: Record<BodyPart, string[]> = {
   胸: [
@@ -58,6 +64,14 @@ export function buildDefaultExercises(): Exercise[] {
     }
   }
   return result
+}
+
+export function buildDefaultBodyParts(): BodyPartRow[] {
+  return DEFAULT_BODY_PARTS.map((name, i) => ({
+    id: crypto.randomUUID(),
+    name,
+    sortOrder: i,
+  }))
 }
 
 export function buildDefaultTags(): Tag[] {

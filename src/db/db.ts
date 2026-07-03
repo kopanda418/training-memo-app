@@ -1,6 +1,15 @@
 import Dexie, { type Table } from 'dexie'
-import { buildDefaultExercises, buildDefaultTags } from './seed'
-import type { Day, Exercise, Location, SetAttribute, Setting, Tag, WorkoutSet } from './types'
+import { buildDefaultBodyParts, buildDefaultExercises, buildDefaultTags } from './seed'
+import type {
+  BodyPartRow,
+  Day,
+  Exercise,
+  Location,
+  SetAttribute,
+  Setting,
+  Tag,
+  WorkoutSet,
+} from './types'
 
 /**
  * スキーマ変更時は version(n+1).stores(...).upgrade(...) を「追加」し、
@@ -14,6 +23,7 @@ export class TrainingMemoDB extends Dexie {
   locations!: Table<Location, string>
   settings!: Table<Setting, string>
   setAttributes!: Table<SetAttribute, string>
+  bodyParts!: Table<BodyPartRow, string>
 
   constructor() {
     super('training-memo')
@@ -41,10 +51,19 @@ export class TrainingMemoDB extends Dexie {
           lastUsedAt: Date.now(),
         })
       })
+    // v3: 部位マスタを追加(追加可能にするため固定配列からテーブルへ)
+    this.version(3)
+      .stores({
+        bodyParts: 'id, name, sortOrder',
+      })
+      .upgrade(async (tx) => {
+        await tx.table<BodyPartRow, string>('bodyParts').bulkAdd(buildDefaultBodyParts())
+      })
     // 初回作成時のみデフォルトマスタを投入
     this.on('populate', () => {
       void this.exercises.bulkAdd(buildDefaultExercises())
       void this.tags.bulkAdd(buildDefaultTags())
+      void this.bodyParts.bulkAdd(buildDefaultBodyParts())
     })
   }
 }

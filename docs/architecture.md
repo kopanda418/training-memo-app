@@ -34,21 +34,28 @@ GitHub リポジトリ → GitHub Actions → GitHub Pages (静的配信のみ)
 日付キーは端末ローカルの `YYYY-MM-DD` 文字列。ID は `crypto.randomUUID()`。
 
 ```ts
-// db.version(1)
+// db.version(3) 時点
 exercises: 'id, name, bodyPart, sortOrder'
-// { id, name, bodyPart, sortOrder, isArchived, createdAt }
+// { id, name, bodyPart(部位名の文字列), sortOrder, isArchived, createdAt }
 tags: 'id, name, sortOrder'
 // { id, name, color?, sortOrder, isArchived, createdAt }
 // タグは全種目共通のマスタ(高重量日・中重量日・低重量日 など)
 days: 'date'
 // { date, locationId?, note? }  … 1日1レコード。場所はここに持つ
 sets: 'id, date, [exerciseId+tagId], exerciseId'
-// { id, date, exerciseId, tagId (なし時は '' 固定), weight, reps,
-//   isAssisted, unit ('kg'|'lbs'), memo?, orderInDay, createdAt }
+// { id, date, exerciseId, tagId (なし時は '' 固定),
+//   weight(isBodyweight 時は加重分), isBodyweight?, reps, targetReps?,
+//   attribute?(セット属性・任意テキスト), isAssisted(deprecated→attribute),
+//   unit ('kg'|'lbs'), memo?, orderInDay, createdAt }
 locations: 'id, name'
 // { id, name, lastUsedAt }  … 場所の入力候補用マスタ
+setAttributes: 'id, name' // v2 追加
+// { id, name, lastUsedAt } … セット属性バンク(入力候補)
+bodyParts: 'id, name, sortOrder' // v3 追加
+// { id, name, sortOrder } … 部位マスタ(追加可能。デフォルト7部位をシード)
 settings: 'key'
-// { key, value } … theme / defaultUnit / timerPresets / wakeLockEnabled など
+// { key, value } … bodyWeight / quickSetAttributes / quickExerciseTagIds / theme など
+//                   (キー一覧は src/db/settings.ts の SettingKey)
 ```
 
 設計上の要点:

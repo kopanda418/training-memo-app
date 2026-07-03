@@ -1,5 +1,15 @@
 import { db } from './db'
-import type { Day, Exercise, Location, SetAttribute, Setting, Tag, WorkoutSet } from './types'
+import { buildDefaultBodyParts } from './seed'
+import type {
+  BodyPartRow,
+  Day,
+  Exercise,
+  Location,
+  SetAttribute,
+  Setting,
+  Tag,
+  WorkoutSet,
+} from './types'
 
 /** エクスポート JSON の形式バージョン。互換性が壊れる変更をしたら上げる */
 export const BACKUP_FORMAT_VERSION = 1
@@ -17,6 +27,8 @@ export interface BackupFile {
     settings: Setting[]
     /** v2 で追加(旧バックアップには無いので省略可) */
     setAttributes?: SetAttribute[]
+    /** v3 で追加(旧バックアップには無いので省略可) */
+    bodyParts?: BodyPartRow[]
   }
 }
 
@@ -34,6 +46,7 @@ export async function exportData(): Promise<BackupFile> {
       locations: await db.locations.toArray(),
       settings: await db.settings.toArray(),
       setAttributes: await db.setAttributes.toArray(),
+      bodyParts: await db.bodyParts.toArray(),
     },
   }))
 }
@@ -50,6 +63,20 @@ export async function importData(backup: unknown): Promise<void> {
     await db.locations.bulkAdd(parsed.data.locations)
     await db.settings.bulkAdd(parsed.data.settings)
     await db.setAttributes.bulkAdd(parsed.data.setAttributes ?? [])
+    // 旧形式(bodyParts なし)の復元: デフォルト + 種目が使っている部位名から再構築する
+    let bodyParts = parsed.data.bodyParts
+    if (!bodyParts?.length) {
+      bodyParts = buildDefaultBodyParts()
+      const known = new Set(bodyParts.map((p) => p.name))
+      let order = bodyParts.length
+      for (const e of parsed.data.exercises) {
+        if (!known.has(e.bodyPart)) {
+          known.add(e.bodyPart)
+          bodyParts.push({ id: crypto.randomUUID(), name: e.bodyPart, sortOrder: order++ })
+        }
+      }
+    }
+    await db.bodyParts.bulkAdd(bodyParts)
   })
 }
 

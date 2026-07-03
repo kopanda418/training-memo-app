@@ -283,6 +283,100 @@ export async function setSetAttribute(setId: string, name: string | undefined): 
   })
 }
 
+// ---- マスタ管理(種目・部位・タグ・セット属性) ----
+
+/** 削除の結果。使用中で削除できない場合は usedCount に使用セット数が入る */
+export interface DeleteResult {
+  deleted: boolean
+  usedCount?: number
+}
+
+export async function listBodyParts() {
+  return db.bodyParts.orderBy('sortOrder').toArray()
+}
+
+/** 部位を追加する。同名(トリム後)が既にあればそれを返す */
+export async function addBodyPart(name: string) {
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error('部位名が空です')
+  return db.transaction('rw', [db.bodyParts], async () => {
+    const found = await db.bodyParts.where('name').equals(trimmed).first()
+    if (found) return found
+    const all = await db.bodyParts.toArray()
+    const row = {
+      id: crypto.randomUUID(),
+      name: trimmed,
+      sortOrder: all.length ? Math.max(...all.map((p) => p.sortOrder)) + 1 : 0,
+    }
+    await db.bodyParts.add(row)
+    return row
+  })
+}
+
+/** 種目を追加する。同部位に同名があればそれを返す */
+export async function addExercise(name: string, bodyPart: string) {
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error('種目名が空です')
+  return db.transaction('rw', [db.exercises], async () => {
+    const found = await db.exercises
+      .where('name')
+      .equals(trimmed)
+      .and((e) => e.bodyPart === bodyPart)
+      .first()
+    if (found) return found
+    const all = await db.exercises.toArray()
+    const exercise = {
+      id: crypto.randomUUID(),
+      name: trimmed,
+      bodyPart,
+      sortOrder: all.length ? Math.max(...all.map((e) => e.sortOrder)) + 1 : 0,
+      isArchived: false,
+      createdAt: Date.now(),
+    }
+    await db.exercises.add(exercise)
+    return exercise
+  })
+}
+
+export async function renameExercise(id: string, name: string): Promise<void> {
+  const trimmed = name.trim()
+  if (!trimmed) return
+  await db.exercises.update(id, { name: trimmed })
+}
+
+/** 種目を削除する。記録で使用中なら削除せず件数を返す */
+export async function deleteExercise(id: string): Promise<DeleteResult> {
+  return db.transaction('rw', [db.exercises, db.sets], async () => {
+    const usedCount = await db.sets.where('exerciseId').equals(id).count()
+    if (usedCount > 0) return { deleted: false, usedCount }
+    await db.exercises.delete(id)
+    return { deleted: true }
+  })
+}
+
+/** 種目タグを削除する。記録で使用中なら削除せず件数を返す */
+export async function deleteTag(id: string): Promise<DeleteResult> {
+  return db.transaction('rw', [db.tags, db.sets], async () => {
+    // tagId 単独のインデックスはないので全走査(データ量は数万件想定で問題ない)
+    const usedCount = await db.sets.filter((s) => s.tagId === id).count()
+    if (usedCount > 0) return { deleted: false, usedCount }
+    await db.tags.delete(id)
+    return { deleted: true }
+  })
+}
+
+/** セット属性をバンクから削除する。記録で使用中なら削除せず件数を返す */
+export async function deleteSetAttribute(id: string): Promise<DeleteResult> {
+  return db.transaction('rw', [db.setAttributes, db.sets], async () => {
+    const attr = await db.setAttributes.get(id)
+    if (!attr) return { deleted: true }
+    const usedCount = await db.sets.filter((s) => s.attribute === attr.name).count()
+    if (usedCount > 0) return { deleted: false, usedCount }
+    await db.setAttributes.delete(id)
+    return { deleted: true }
+  })
+}
+
 /** タグを追加する。同名(トリム後)が既にあればそれを返す */
 export async function addTag(name: string): Promise<Tag> {
   const trimmed = name.trim()
