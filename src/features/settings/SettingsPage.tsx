@@ -41,7 +41,7 @@ export function SettingsPage() {
     <div className="flex flex-col gap-5 p-4">
       <h1 className="text-lg font-bold">設定</h1>
 
-      <section className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-bold">体重(自重入力用)</h2>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
           記録画面の「自重」ボタンでこの値が重量欄に入ります(懸垂・ディップスなど)
@@ -63,7 +63,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-bold">セット属性のクイックボタン</h2>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
           セット行に表示される 3 つの即時入力ボタン(空にするとそのボタンは非表示)
@@ -81,7 +81,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-bold">種目タグのクイックボタン</h2>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
           種目選択時のタグ工程に表示される 3 つのボタン(タグ名で指定。存在しなければ新規作成)

@@ -57,7 +57,7 @@ export function ExerciseBlock({
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+    <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <header className="mb-1 flex items-center gap-2">
         <h2 className="min-w-0 truncate text-sm font-bold">{exerciseName}</h2>
         {tagName && (

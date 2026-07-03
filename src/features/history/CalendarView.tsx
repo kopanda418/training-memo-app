@@ -91,7 +91,7 @@ export function CalendarView() {
       </div>
 
       {selected && (
-        <section className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+        <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <header className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-bold">{formatDateLabel(selected)}</h2>
             <div className="flex gap-2">

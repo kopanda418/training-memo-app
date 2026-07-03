@@ -21,5 +21,11 @@ body {
 }
 
 body {
-  @apply bg-white text-slate-900 antialiased dark:bg-slate-900 dark:text-slate-100;
+  @apply bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+}
+
+/* 重量・回数などの数値は桁が揃うように等幅数字にする */
+input,
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

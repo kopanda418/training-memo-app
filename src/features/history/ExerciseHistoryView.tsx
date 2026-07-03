@@ -100,7 +100,7 @@ export function ExerciseHistoryView() {
       {groups.map((group) => (
         <section
           key={group.date}
-          className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"
+          className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"
         >
           <button
             type="button"

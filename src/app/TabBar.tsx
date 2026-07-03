@@ -10,7 +10,7 @@ const tabs = [
 export function TabBar() {
   return (
     <nav
-      className="flex border-t border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
+      className="flex border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       {tabs.map((tab) => (
