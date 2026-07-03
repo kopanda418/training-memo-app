@@ -30,6 +30,7 @@
 - 実機フィードバックの要件・決定事項は docs/feedback-2026-07-03.md に集約(自重=設定の体重、セット属性は1つ、並べ替えは↑↓、ダーク基調)
 - 現在ダークがデフォルト(index.html の `<html class="dark">`)。M6 のテーマ切替はこのクラスを設定値で付け外しする
 - `sets.isAssisted` は deprecated(Dexie v2 で属性「補助」へ移行済み)。新規コードでは `attribute` を使う
+- 2026-07-03 に全履歴の author/committer を noreply アドレスへ書き換え済み(個人メール露出対策)。このリポジトリの git config user.email はリポジトリローカルで noreply に設定してある。変更しないこと
 
 ## セッション履歴
 
