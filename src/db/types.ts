@@ -41,7 +41,13 @@ export interface WorkoutSet {
   /** タグなしは NO_TAG ('') */
   tagId: string
   weight: number
+  /** 実績レップ数 */
   reps: number
+  /** 目標レップ数(任意) */
+  targetReps?: number
+  /** セット属性(任意テキスト、1 セットに 1 つ。例: RPE9、ベルトなし、補助) */
+  attribute?: string
+  /** @deprecated 属性に置き換え(G3)。過去データ互換のため残す */
   isAssisted: boolean
   unit: WeightUnit
   memo?: string

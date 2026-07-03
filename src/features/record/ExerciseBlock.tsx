@@ -40,6 +40,7 @@ export function ExerciseBlock({
       tagId,
       weight: last?.weight ?? 20,
       reps: last?.reps ?? 10,
+      targetReps: last?.targetReps,
       unit: last?.unit ?? 'kg',
     })
   }
@@ -91,7 +92,7 @@ export function ExerciseBlock({
       {message && <p className="py-1 text-xs text-amber-600 dark:text-amber-400">{message}</p>}
       <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
         {sets.map((set, i) => (
-          <SetRow key={set.id} set={set} index={i} />
+          <SetRow key={set.id} set={set} index={i} prevSet={i > 0 ? sets[i - 1] : undefined} />
         ))}
       </div>
       <button

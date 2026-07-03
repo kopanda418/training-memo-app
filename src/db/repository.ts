@@ -8,6 +8,8 @@ export interface NewSetInput {
   tagId?: string
   weight: number
   reps: number
+  targetReps?: number
+  attribute?: string
   isAssisted?: boolean
   unit?: WeightUnit
   memo?: string
@@ -25,6 +27,8 @@ export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
       tagId: input.tagId ?? NO_TAG,
       weight: input.weight,
       reps: input.reps,
+      targetReps: input.targetReps,
+      attribute: input.attribute,
       isAssisted: input.isAssisted ?? false,
       unit: input.unit ?? 'kg',
       memo: input.memo,
@@ -39,7 +43,12 @@ export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
 
 export async function updateSet(
   id: string,
-  changes: Partial<Pick<WorkoutSet, 'weight' | 'reps' | 'isAssisted' | 'unit' | 'memo' | 'tagId'>>,
+  changes: Partial<
+    Pick<
+      WorkoutSet,
+      'weight' | 'reps' | 'targetReps' | 'attribute' | 'isAssisted' | 'unit' | 'memo' | 'tagId'
+    >
+  >,
 ): Promise<void> {
   await db.sets.update(id, changes)
 }
