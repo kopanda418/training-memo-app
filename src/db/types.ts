@@ -40,7 +40,10 @@ export interface WorkoutSet {
   exerciseId: string
   /** タグなしは NO_TAG ('') */
   tagId: string
+  /** 重量。isBodyweight のときは「加重分」を意味する(0 = 純自重) */
   weight: number
+  /** 自重で行ったセットか(表示は「自重」「自重+10kg」) */
+  isBodyweight?: boolean
   /** 実績レップ数 */
   reps: number
   /** 目標レップ数(任意) */

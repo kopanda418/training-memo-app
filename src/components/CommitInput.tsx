@@ -35,6 +35,7 @@ export function CommitInput({
       placeholder={placeholder}
       value={text}
       onChange={(e) => setText(e.target.value)}
+      onFocus={(e) => e.target.select()}
       onBlur={() => {
         if (text !== value) onCommit(text)
       }}

@@ -7,6 +7,7 @@ import { listRecordedDates, listSetsByDate } from '../../db/repository'
 import { addMonths, monthGrid } from '../../lib/calendar'
 import { formatDateLabel, todayString } from '../../lib/date'
 import { groupSetsIntoBlocks } from '../../lib/groupSets'
+import { formatSetWeight } from '../../lib/setFormat'
 
 const WEEKDAY_HEADER = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -126,7 +127,7 @@ export function CalendarView() {
                     </span>
                   )}
                   <span className="ml-2 text-slate-500 dark:text-slate-400">
-                    {block.sets.map((s) => `${s.weight}${s.unit}×${s.reps}`).join(' / ')}
+                    {block.sets.map((s) => `${formatSetWeight(s)}×${s.reps}`).join(' / ')}
                   </span>
                 </li>
               ))}

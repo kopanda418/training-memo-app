@@ -1,9 +1,14 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { CalendarView } from './CalendarView'
 import { ExerciseHistoryView } from './ExerciseHistoryView'
 
 export function HistoryPage() {
-  const [view, setView] = useState<'calendar' | 'exercise'>('calendar')
+  // 記録画面の「履歴 ›」から view=exercise&ex=..&tag=.. で遷移してくる
+  const [params] = useSearchParams()
+  const [view, setView] = useState<'calendar' | 'exercise'>(
+    params.get('view') === 'exercise' ? 'exercise' : 'calendar',
+  )
 
   const segClass = (active: boolean) =>
     `flex-1 rounded-lg py-1.5 text-sm ${

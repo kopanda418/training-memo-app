@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { db } from '../../db/db'
 import { useMasters } from '../../db/hooks'
+import { useSetting } from '../../db/settings'
 import { NO_TAG, type WorkoutSet } from '../../db/types'
 import { formatDateLabel, todayString } from '../../lib/date'
 import { estimateOneRepMax } from '../../lib/oneRepMax'
+import { effectiveLoad, formatSetWeight } from '../../lib/setFormat'
 import { ExercisePicker } from '../record/ExercisePicker'
 
 /** タグフィルタ: 'all' はすべて、NO_TAG はタグなしのみ、それ以外はタグ ID */
@@ -13,11 +15,16 @@ type TagFilter = 'all' | string
 
 export function ExerciseHistoryView() {
   const navigate = useNavigate()
-  const [exerciseId, setExerciseId] = useState<string | null>(null)
-  const [tagFilter, setTagFilter] = useState<TagFilter>('all')
+  // 記録画面からのディープリンク(ex=種目ID, tag=タグID。tag='' はタグなしフィルタ)
+  const [params] = useSearchParams()
+  const [exerciseId, setExerciseId] = useState<string | null>(params.get('ex'))
+  const [tagFilter, setTagFilter] = useState<TagFilter>(
+    params.get('tag') !== null ? params.get('tag')! : 'all',
+  )
   const [pickerOpen, setPickerOpen] = useState(false)
 
   const { exerciseName, tagName, tags } = useMasters()
+  const bodyWeight = useSetting<number>('bodyWeight')
 
   const sets = useLiveQuery<WorkoutSet[]>(
     () =>
@@ -117,8 +124,7 @@ export function ExerciseHistoryView() {
                 <div className="flex items-center gap-2">
                   <span className="w-5 text-center text-xs text-slate-400">{i + 1}</span>
                   <span className="font-bold">
-                    {s.weight}
-                    {s.unit} × {s.reps}回
+                    {formatSetWeight(s)} × {s.reps}回
                   </span>
                   {s.targetReps != null && (
                     <span className="text-xs text-slate-400">(目標{s.targetReps})</span>
@@ -133,9 +139,14 @@ export function ExerciseHistoryView() {
                       {tagName(s.tagId)}
                     </span>
                   )}
-                  <span className="ml-auto text-[10px] text-slate-400">
-                    1RM {Math.round(estimateOneRepMax(s.weight, s.reps) * 10) / 10}kg
-                  </span>
+                  {(() => {
+                    const load = effectiveLoad(s, bodyWeight)
+                    return load !== undefined && load > 0 && s.reps > 0 ? (
+                      <span className="ml-auto text-[10px] text-slate-400">
+                        1RM {Math.round(estimateOneRepMax(load, s.reps) * 10) / 10}kg
+                      </span>
+                    ) : null
+                  })()}
                 </div>
                 {s.memo && <p className="pl-7 text-xs text-slate-400">{s.memo}</p>}
               </li>

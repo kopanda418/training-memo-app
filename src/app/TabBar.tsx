@@ -11,7 +11,8 @@ export function TabBar() {
   return (
     <nav
       className="flex border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      // セーフエリア分をそのまま足すと余白が過大(実機フィードバック)。ホームバーと重ならない最小限に詰める
+      style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom) - 14px), 0px)' }}
     >
       {tabs.map((tab) => (
         <NavLink

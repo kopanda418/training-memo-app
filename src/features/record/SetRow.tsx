@@ -4,6 +4,7 @@ import { deleteSet, setSetAttribute, updateSet } from '../../db/repository'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, useSetting } from '../../db/settings'
 import type { WorkoutSet } from '../../db/types'
 import { estimateOneRepMax } from '../../lib/oneRepMax'
+import { effectiveLoad } from '../../lib/setFormat'
 import { AttributePicker } from './AttributePicker'
 
 interface SetRowProps {
@@ -51,21 +52,19 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
   const quickAttrs = (
     useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
   ).filter((q) => q.trim() !== '')
-  const [hint, setHint] = useState<string | null>(null)
   const [attrPickerOpen, setAttrPickerOpen] = useState(false)
 
-  const oneRm = estimateOneRepMax(set.weight, set.reps)
+  // 自重セットは「体重 + 加重」で 1RM 換算(体重未登録なら換算しない)
+  const load = effectiveLoad(set, bodyWeight)
+  const oneRm = load !== undefined ? estimateOneRepMax(load, set.reps) : 0
 
-  const showHint = (text: string) => {
-    setHint(text)
-    setTimeout(() => setHint(null), 2500)
-  }
-
-  const applyBodyWeight = () => {
-    if (bodyWeight && bodyWeight > 0) {
-      void updateSet(set.id, { weight: bodyWeight })
+  const toggleBodyweight = () => {
+    if (set.isBodyweight) {
+      // OFF: 加重分の数値はそのまま通常重量として残す
+      void updateSet(set.id, { isBodyweight: undefined })
     } else {
-      showHint('設定タブで体重を登録すると「自重」で入力できます')
+      // ON: 重量欄は「加重分」の意味になるので 0(純自重)から始める
+      void updateSet(set.id, { isBodyweight: true, weight: 0 })
     }
   }
 
@@ -76,11 +75,20 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
         <CopyBtn
           label="前セットの重量をコピー"
           disabled={!prevSet}
-          onClick={() => prevSet && void updateSet(set.id, { weight: prevSet.weight })}
+          onClick={() =>
+            prevSet &&
+            void updateSet(set.id, {
+              weight: prevSet.weight,
+              isBodyweight: prevSet.isBodyweight,
+            })
+          }
         />
+        {set.isBodyweight && (
+          <span className="shrink-0 text-[10px] font-bold text-emerald-500">自重+</span>
+        )}
         <CommitInput
           inputMode="decimal"
-          className={`w-14 text-right text-base font-bold ${numBoxClass}`}
+          className={`${set.isBodyweight ? 'w-10' : 'w-14'} text-right text-base font-bold ${numBoxClass}`}
           value={String(set.weight)}
           onCommit={(t) => {
             const n = parseNum(t)
@@ -90,8 +98,12 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
         <span className="shrink-0 text-xs text-slate-400">{set.unit}</span>
         <button
           type="button"
-          className="shrink-0 rounded-md border border-slate-300 px-1 py-1 text-[10px] leading-none text-slate-500 active:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:active:bg-slate-700"
-          onClick={applyBodyWeight}
+          className={`shrink-0 rounded-md border px-1 py-1 text-[10px] leading-none ${
+            set.isBodyweight
+              ? 'border-emerald-500 font-bold text-emerald-500'
+              : 'border-slate-300 text-slate-500 active:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:active:bg-slate-700'
+          }`}
+          onClick={toggleBodyweight}
         >
           自重
         </button>
@@ -133,7 +145,6 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
           ✕
         </button>
       </div>
-      {hint && <p className="pl-5 pt-0.5 text-[10px] text-amber-600 dark:text-amber-400">{hint}</p>}
       <div className="mt-0.5 flex items-center gap-1 pl-5">
         <CopyBtn
           label="前セットのコメントをコピー"

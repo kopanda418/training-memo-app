@@ -8,6 +8,7 @@ export interface NewSetInput {
   /** 省略時はタグなし */
   tagId?: string
   weight: number
+  isBodyweight?: boolean
   reps: number
   targetReps?: number
   attribute?: string
@@ -27,6 +28,7 @@ export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
       exerciseId: input.exerciseId,
       tagId: input.tagId ?? NO_TAG,
       weight: input.weight,
+      isBodyweight: input.isBodyweight,
       reps: input.reps,
       targetReps: input.targetReps,
       attribute: input.attribute,
@@ -47,7 +49,15 @@ export async function updateSet(
   changes: Partial<
     Pick<
       WorkoutSet,
-      'weight' | 'reps' | 'targetReps' | 'attribute' | 'isAssisted' | 'unit' | 'memo' | 'tagId'
+      | 'weight'
+      | 'isBodyweight'
+      | 'reps'
+      | 'targetReps'
+      | 'attribute'
+      | 'isAssisted'
+      | 'unit'
+      | 'memo'
+      | 'tagId'
     >
   >,
 ): Promise<void> {
