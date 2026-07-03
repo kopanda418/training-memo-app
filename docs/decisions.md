@@ -51,3 +51,10 @@
 - **日付**: 2026-07-03
 - **決定**: `1RM = weight × (1 + reps / 30)`。計算は `lib/` の純粋関数に隔離
 - **理由**: 最も一般的で筋トレmemo 系アプリの通例。関数を差し替えれば他式(Brzycki 等)に変更可能な構造にしておく
+
+## ADR-008: Pages へのデプロイは gh-pages ブランチ方式(legacy)
+
+- **日付**: 2026-07-03
+- **決定**: GitHub Actions からのデプロイは `actions/deploy-pages`(artifact 方式)ではなく、ビルド成果物を `gh-pages` ブランチへ force push する legacy 方式にする(ADR-004 の補足)
+- **理由**: artifact 方式が M2 デプロイ時から "Deployment failed, try again later" で連続失敗(ビルドは成功、GitHub ステータス正常、API にエラー詳細なし、新 SHA・新 artifact でも再現)。gh-pages ブランチ方式は枯れており動作が追いやすい
+- **備考**: Pages 設定は `build_type=legacy` / source=gh-pages ブランチに API で変更済み。`.nojekyll` を dist に含めて Jekyll 処理を回避
