@@ -9,9 +9,8 @@
 
 ## 次にやること
 
-1. **[デプロイ再試行中]** Pages デプロイが「Deployment failed, try again later」で連続失敗(GitHub ステータスは正常、ビルドは成功、M1 までは同一設定でデプロイ成功済み → Pages 側の一時エラーと判断)。時間をおいて `gh workflow run deploy.yml` を再実行する
-2. デプロイ成功後、ユーザーに実機で記録入力の一通り(種目追加→タグ→セット入力→前回コピー→場所設定)を試してもらう。タブバー沈み込み修正の目視確認も一緒に
-3. フィードバックを反映して M2 完了 → 次は M3(履歴: カレンダー・種目別履歴・日付間コピー/移動)
+1. **[ユーザー待ち]** 実機で記録入力の一通り(種目追加→タグ→セット入力→前回コピー→場所設定)を試してもらう。タブバー沈み込み修正の目視確認も一緒に
+2. フィードバックを反映して M2 完了(roadmap の M2 を ✅ に)→ 次は M3(履歴: カレンダー・種目別履歴・日付間コピー/移動)
 
 ## 申し送り・注意点
 
@@ -22,15 +21,17 @@
 - eslint-plugin-react-hooks v7 は flat config を `configs.flat.recommended` で参照する(`recommended-latest` はレガシー形式でエラーになる)
 - PowerShell 5.1 に日本語入りスクリプトを渡すと文字コード誤読で壊れる。一時 .ps1 は ASCII のみで書く
 - Pages の有効化は Actions の `configure-pages` (enablement: true) では権限不足で失敗する。`gh api -X POST repos/kopanda418/training-memo-app/pages -f build_type=workflow` で有効化済み(一度きりの作業、再実行不要)
-- デプロイは main への push で自動。状態確認は `gh run list` / `gh run watch <id>`
+- デプロイは main への push で自動(Actions が gh-pages ブランチへ push → Pages が配信。ADR-008)。状態確認は `gh run list` / `gh run watch <id>`、配信確認は `gh api repos/kopanda418/training-memo-app/pages/builds/latest`
+- 旧 artifact 方式 (`actions/deploy-pages`) はこのリポジトリで原因不明の連続失敗。戻さないこと
+- PowerShell 経由の `git commit -m` に二重引用符入りメッセージを渡すと引数が壊れる。メッセージに `"` を含めない
 - データ層の使い方: `src/db/repository.ts`(addSet は日レコード作成と orderInDay 採番を内包)、バックアップは `src/db/backup.ts`。タグなしは `NO_TAG`('')に正規化される(ADR-005)
 - Dexie の `toArray()` は主キー(UUID)順で返る。マスタの表示は `orderBy('sortOrder')` を使うこと
 
 ## セッション履歴
 
-| 日付       | 内容                                                                                                                           |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-07-03 | 要件定義・技術設計・開発計画・体制ドキュメント作成。git リポジトリ初期化                                                       |
-| 2026-07-03 | M0 実装(雛形・PWA・タブ4画面・CI/CD)。lint/test/build 通過。Pages デプロイ成功、公開 URL 応答確認。残りは実機確認のみ          |
-| 2026-07-03 | 実機報告のタブバー沈み込みを修正(safe-area padding の位置)。M1 完了: Dexie v1・repository・JSON バックアップ・テスト 12 件     |
-| 2026-07-03 | M2 実装: 記録画面(ブロック・ステッパー・前回コピー・場所)+ repository 拡張。テスト 20 件。Pages デプロイが一時エラーで再試行中 |
+| 日付       | 内容                                                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-07-03 | 要件定義・技術設計・開発計画・体制ドキュメント作成。git リポジトリ初期化                                                             |
+| 2026-07-03 | M0 実装(雛形・PWA・タブ4画面・CI/CD)。lint/test/build 通過。Pages デプロイ成功、公開 URL 応答確認。残りは実機確認のみ                |
+| 2026-07-03 | 実機報告のタブバー沈み込みを修正(safe-area padding の位置)。M1 完了: Dexie v1・repository・JSON バックアップ・テスト 12 件           |
+| 2026-07-03 | M2 実装: 記録画面(ブロック・ステッパー・前回コピー・場所)+ repository 拡張。テスト 20 件。デプロイを gh-pages 方式に切替して公開成功 |
