@@ -256,10 +256,49 @@ export async function moveBlockInDay(
   })
 }
 
+/** ブロック内のセットを指定順に並べ替える(orderInDay を日全体で振り直す) */
+export async function reorderSetsInBlock(
+  date: string,
+  exerciseId: string,
+  tagId: string,
+  orderedIds: string[],
+): Promise<void> {
+  await db.transaction('rw', [db.sets], async () => {
+    const sets = (await db.sets.where('date').equals(date).toArray()).sort(
+      (a, b) => a.orderInDay - b.orderInDay,
+    )
+    const blocks = groupSetsIntoBlocks(sets)
+    const block = blocks.find((b) => b.exerciseId === exerciseId && b.tagId === tagId)
+    if (!block) return
+    const byId = new Map(block.sets.map((s) => [s.id, s]))
+    const reordered = orderedIds
+      .map((id) => byId.get(id))
+      .filter((s): s is WorkoutSet => s !== undefined)
+    if (reordered.length !== block.sets.length) return
+    block.sets = reordered
+    let order = 0
+    await db.sets.bulkPut(blocks.flatMap((b) => b.sets.map((s) => ({ ...s, orderInDay: order++ }))))
+  })
+}
+
 /** セット属性バンクの入力候補(最近使った順) */
 export async function listSetAttributes() {
   const attrs = await db.setAttributes.toArray()
   return attrs.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+}
+
+/** セット属性をバンクへ登録する(既存名は lastUsedAt 更新)。クイックボタン設定からの新規作成もここを通す */
+export async function upsertSetAttribute(name: string): Promise<void> {
+  const trimmed = name.trim()
+  if (!trimmed) return
+  await db.transaction('rw', [db.setAttributes], async () => {
+    const found = await db.setAttributes.where('name').equals(trimmed).first()
+    if (found) {
+      await db.setAttributes.update(found.id, { lastUsedAt: Date.now() })
+    } else {
+      await db.setAttributes.add({ id: crypto.randomUUID(), name: trimmed, lastUsedAt: Date.now() })
+    }
+  })
 }
 
 /**
@@ -273,14 +312,78 @@ export async function setSetAttribute(setId: string, name: string | undefined): 
       await db.sets.update(setId, { attribute: undefined })
       return
     }
-    const found = await db.setAttributes.where('name').equals(trimmed).first()
-    if (found) {
-      await db.setAttributes.update(found.id, { lastUsedAt: Date.now() })
-    } else {
-      await db.setAttributes.add({ id: crypto.randomUUID(), name: trimmed, lastUsedAt: Date.now() })
-    }
+    await upsertSetAttribute(trimmed)
     await db.sets.update(setId, { attribute: trimmed })
   })
+}
+
+/** 記録済みブロック(その日の種目×タグ)のタグを付け替える(全セットに適用) */
+export async function changeBlockTag(
+  date: string,
+  exerciseId: string,
+  fromTagId: string,
+  toTagId: string,
+): Promise<void> {
+  if (fromTagId === toTagId) return
+  await db.transaction('rw', [db.sets], async () => {
+    const sets = await db.sets.where('date').equals(date).toArray()
+    const targets = sets.filter((s) => s.exerciseId === exerciseId && s.tagId === fromTagId)
+    await db.sets.bulkPut(targets.map((s) => ({ ...s, tagId: toTagId })))
+  })
+}
+
+// ---- テンプレート(トレーニングメニュー) ----
+
+export async function listTemplates() {
+  const templates = await db.templates.toArray()
+  return templates.sort((a, b) => a.createdAt - b.createdAt)
+}
+
+/** その日の記録(種目×タグの並び)をテンプレートとして保存する */
+export async function saveTemplateFromDay(date: string, name: string) {
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error('テンプレート名が空です')
+  const sets = await listSetsByDate(date)
+  const blocks = groupSetsIntoBlocks(sets)
+  if (blocks.length === 0) throw new Error('この日に記録がありません')
+  const template = {
+    id: crypto.randomUUID(),
+    name: trimmed,
+    items: blocks.map((b) => ({ exerciseId: b.exerciseId, tagId: b.tagId })),
+    createdAt: Date.now(),
+  }
+  await db.templates.add(template)
+  return template
+}
+
+export async function deleteTemplate(id: string): Promise<void> {
+  await db.templates.delete(id)
+}
+
+/**
+ * テンプレートを日に展開する。各種目×タグの前回記録をコピーし、
+ * 前回がなければデフォルト 1 セットを作る。展開したブロック数を返す
+ */
+export async function applyTemplate(date: string, templateId: string): Promise<number> {
+  const template = await db.templates.get(templateId)
+  if (!template) return 0
+  for (const item of template.items) {
+    const copied = await copyPreviousSession(date, item.exerciseId, item.tagId)
+    if (copied === 0) {
+      const last = await getLastSet(item.exerciseId, item.tagId)
+      await addSet({
+        date,
+        exerciseId: item.exerciseId,
+        tagId: item.tagId,
+        weight: last?.weight ?? 20,
+        isBodyweight: last?.isBodyweight,
+        reps: last?.reps ?? 10,
+        targetReps: last?.targetReps,
+        unit: last?.unit ?? 'kg',
+      })
+    }
+  }
+  return template.items.length
 }
 
 // ---- マスタ管理(種目・部位・タグ・セット属性) ----
@@ -335,6 +438,25 @@ export async function addExercise(name: string, bodyPart: string) {
     }
     await db.exercises.add(exercise)
     return exercise
+  })
+}
+
+/** 同じ部位内で種目の並び順を 1 つ上/下へ動かす(sortOrder を入れ替え) */
+export async function moveExerciseOrder(id: string, direction: 'up' | 'down'): Promise<void> {
+  await db.transaction('rw', [db.exercises], async () => {
+    const target = await db.exercises.get(id)
+    if (!target) return
+    const siblings = (await db.exercises.toArray())
+      .filter((e) => e.bodyPart === target.bodyPart)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+    const index = siblings.findIndex((e) => e.id === id)
+    const swapWith = direction === 'up' ? index - 1 : index + 1
+    if (index < 0 || swapWith < 0 || swapWith >= siblings.length) return
+    const other = siblings[swapWith]
+    await db.exercises.bulkPut([
+      { ...target, sortOrder: other.sortOrder },
+      { ...other, sortOrder: target.sortOrder },
+    ])
   })
 }
 

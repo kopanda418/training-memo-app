@@ -8,6 +8,7 @@ import type {
   SetAttribute,
   Setting,
   Tag,
+  Template,
   WorkoutSet,
 } from './types'
 
@@ -24,6 +25,7 @@ export class TrainingMemoDB extends Dexie {
   settings!: Table<Setting, string>
   setAttributes!: Table<SetAttribute, string>
   bodyParts!: Table<BodyPartRow, string>
+  templates!: Table<Template, string>
 
   constructor() {
     super('training-memo')
@@ -59,6 +61,10 @@ export class TrainingMemoDB extends Dexie {
       .upgrade(async (tx) => {
         await tx.table<BodyPartRow, string>('bodyParts').bulkAdd(buildDefaultBodyParts())
       })
+    // v4: トレーニングメニューのテンプレート
+    this.version(4).stores({
+      templates: 'id, name',
+    })
     // 初回作成時のみデフォルトマスタを投入
     this.on('populate', () => {
       void this.exercises.bulkAdd(buildDefaultExercises())

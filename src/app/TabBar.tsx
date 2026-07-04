@@ -9,11 +9,9 @@ const tabs = [
 
 export function TabBar() {
   return (
-    <nav
-      className="flex border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
-      // セーフエリア分をそのまま足すと余白が過大(実機フィードバック)。ホームバーと重ならない最小限に詰める
-      style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom) - 14px), 0px)' }}
-    >
+    // セーフエリアのパディングは付けない: ラベルを画面最下部までフラットに置き、ホームインジケータは
+    // 重ねる(iOS 標準タブバーや参考アプリと同じ挙動。実機フィードバック3回目の根本対応)
+    <nav className="flex border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       {tabs.map((tab) => (
         <NavLink
           key={tab.to}

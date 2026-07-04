@@ -8,6 +8,7 @@ import type {
   SetAttribute,
   Setting,
   Tag,
+  Template,
   WorkoutSet,
 } from './types'
 
@@ -29,6 +30,8 @@ export interface BackupFile {
     setAttributes?: SetAttribute[]
     /** v3 で追加(旧バックアップには無いので省略可) */
     bodyParts?: BodyPartRow[]
+    /** v4 で追加(旧バックアップには無いので省略可) */
+    templates?: Template[]
   }
 }
 
@@ -47,6 +50,7 @@ export async function exportData(): Promise<BackupFile> {
       settings: await db.settings.toArray(),
       setAttributes: await db.setAttributes.toArray(),
       bodyParts: await db.bodyParts.toArray(),
+      templates: await db.templates.toArray(),
     },
   }))
 }
@@ -63,6 +67,7 @@ export async function importData(backup: unknown): Promise<void> {
     await db.locations.bulkAdd(parsed.data.locations)
     await db.settings.bulkAdd(parsed.data.settings)
     await db.setAttributes.bulkAdd(parsed.data.setAttributes ?? [])
+    await db.templates.bulkAdd(parsed.data.templates ?? [])
     // 旧形式(bodyParts なし)の復元: デフォルト + 種目が使っている部位名から再構築する
     let bodyParts = parsed.data.bodyParts
     if (!bodyParts?.length) {

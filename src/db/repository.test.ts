@@ -6,13 +6,19 @@ import {
   addExercise,
   addSet,
   addTag,
+  applyTemplate,
+  changeBlockTag,
   copyPreviousSession,
   deleteExercise,
   deleteSet,
   deleteSetAttribute,
   deleteTag,
+  deleteTemplate,
   listBodyParts,
+  listTemplates,
   renameExercise,
+  reorderSetsInBlock,
+  saveTemplateFromDay,
   getDay,
   getLastSet,
   listHistory,
@@ -265,6 +271,71 @@ describe('setSetAttribute / listSetAttributes(属性バンク)', () => {
     await setSetAttribute(s1.id, undefined)
     expect((await db.sets.get(s1.id))?.attribute).toBeUndefined()
     expect(await db.setAttributes.count()).toBe(2) // バンクは残る
+  })
+})
+
+describe('changeBlockTag(ブロックのタグ変更)', () => {
+  it('その日の対象ブロックの全セットだけタグが変わる', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    const [heavy, mid] = await db.tags.orderBy('sortOrder').toArray()
+    await addSet({ date: '2026-07-04', exerciseId: ex.id, tagId: heavy.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-04', exerciseId: ex.id, tagId: heavy.id, weight: 100, reps: 3 })
+    await addSet({ date: '2026-07-03', exerciseId: ex.id, tagId: heavy.id, weight: 95, reps: 5 }) // 別日は不変
+
+    await changeBlockTag('2026-07-04', ex.id, heavy.id, mid.id)
+    const today = await listSetsByDate('2026-07-04')
+    expect(today.map((s) => s.tagId)).toEqual([mid.id, mid.id])
+    expect((await listSetsByDate('2026-07-03'))[0].tagId).toBe(heavy.id)
+  })
+})
+
+describe('reorderSetsInBlock(セットの並び替え)', () => {
+  it('ブロック内の順序が入れ替わり、他ブロックは影響を受けない', async () => {
+    const [ex1, ex2] = await db.exercises.toArray()
+    const a = await addSet({ date: '2026-07-04', exerciseId: ex1.id, weight: 40, reps: 10 })
+    const b = await addSet({ date: '2026-07-04', exerciseId: ex1.id, weight: 100, reps: 5 })
+    const c = await addSet({ date: '2026-07-04', exerciseId: ex1.id, weight: 105, reps: 3 })
+    await addSet({ date: '2026-07-04', exerciseId: ex2.id, weight: 50, reps: 10 })
+
+    // ウォームアップ(a)をメイン(b)の後ろから先頭へ…ではなく b,c の順を保ったまま a を 2 番目へ
+    await reorderSetsInBlock('2026-07-04', ex1.id, '', [b.id, a.id, c.id])
+    const sets = await listSetsByDate('2026-07-04')
+    expect(sets.map((s) => s.weight)).toEqual([100, 40, 105, 50])
+    expect(sets.map((s) => s.orderInDay)).toEqual([0, 1, 2, 3])
+  })
+})
+
+describe('テンプレート', () => {
+  it('日から保存 → 別日に展開(前回記録コピー)→ 削除できる', async () => {
+    const [ex1, ex2] = await db.exercises.toArray()
+    const [heavy] = await db.tags.toArray()
+    await addSet({ date: '2026-07-01', exerciseId: ex1.id, tagId: heavy.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-01', exerciseId: ex1.id, tagId: heavy.id, weight: 100, reps: 3 })
+    await addSet({ date: '2026-07-01', exerciseId: ex2.id, weight: 50, reps: 10 })
+
+    const template = await saveTemplateFromDay('2026-07-01', '胸の日')
+    expect(template.items).toHaveLength(2)
+
+    const applied = await applyTemplate('2026-07-04', template.id)
+    expect(applied).toBe(2)
+    const sets = await listSetsByDate('2026-07-04')
+    expect(sets).toHaveLength(3) // ex1×heavy の前回2セット + ex2 の前回1セット
+    expect(sets.filter((s) => s.exerciseId === ex1.id && s.tagId === heavy.id)).toHaveLength(2)
+
+    await deleteTemplate(template.id)
+    expect(await listTemplates()).toHaveLength(0)
+  })
+
+  it('記録のない日からの保存はエラー、前回のない種目はデフォルト1セット', async () => {
+    await expect(saveTemplateFromDay('2026-07-04', 'x')).rejects.toThrow()
+
+    const ex = (await db.exercises.toArray())[2]
+    await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 60, reps: 8 })
+    const template = await saveTemplateFromDay('2026-07-01', 'テスト')
+    await db.sets.clear() // 前回記録を消してから展開
+    await applyTemplate('2026-07-04', template.id)
+    const sets = await listSetsByDate('2026-07-04')
+    expect(sets).toHaveLength(1) // デフォルト1セット
   })
 })
 

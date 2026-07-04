@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Modal } from '../../components/Modal'
-import { listSetAttributes } from '../../db/repository'
+import { listSetAttributes, upsertSetAttribute } from '../../db/repository'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, useSetting } from '../../db/settings'
 
 interface AttributePickerProps {
@@ -69,7 +69,11 @@ export function AttributePicker({ open, onClose, current, onSelect }: AttributeP
             <button
               type="button"
               className="w-full rounded-lg border border-dashed border-sky-400 px-3 py-2.5 text-left text-sm text-sky-600 active:bg-sky-50 dark:text-sky-400"
-              onClick={() => pick(trimmed)}
+              onClick={() => {
+                // どの経路(セット行・設定のクイックボタン)から作成してもバンクに残す
+                void upsertSetAttribute(trimmed)
+                pick(trimmed)
+              }}
             >
               「{trimmed}」を作成して設定
             </button>

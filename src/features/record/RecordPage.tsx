@@ -8,6 +8,7 @@ import { groupSetsIntoBlocks, type SetBlock } from '../../lib/groupSets'
 import { ExerciseBlock } from './ExerciseBlock'
 import { ExercisePicker } from './ExercisePicker'
 import { LocationRow } from './LocationRow'
+import { TemplateModal } from './TemplateModal'
 
 interface BlockKey {
   exerciseId: string
@@ -28,6 +29,7 @@ export function RecordPage() {
   // 種目選択直後・セット 0 件のブロック(セットが入るまでの仮の器)
   const [emptyBlocks, setEmptyBlocks] = useState<BlockKey[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [templateOpen, setTemplateOpen] = useState(false)
   // 日付が変わったら仮ブロックを破棄(レンダー中の派生 state 調整パターン)
   const [blocksDate, setBlocksDate] = useState(date)
   if (blocksDate !== date) {
@@ -119,19 +121,29 @@ export function RecordPage() {
             isLast={i >= recordedCount - 1}
           />
         ))}
-        <button
-          type="button"
-          className="w-full rounded-xl bg-sky-600 py-3 text-sm font-bold text-white active:bg-sky-700"
-          onClick={() => setPickerOpen(true)}
-        >
-          ＋ 種目を追加
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="flex-[2] rounded-xl bg-sky-600 py-3 text-sm font-bold text-white active:bg-sky-700"
+            onClick={() => setPickerOpen(true)}
+          >
+            ＋ 種目を追加
+          </button>
+          <button
+            type="button"
+            className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-800"
+            onClick={() => setTemplateOpen(true)}
+          >
+            メニュー
+          </button>
+        </div>
       </div>
 
       {/* 閉じたらアンマウントして選択状態をリセットする */}
       {pickerOpen && (
         <ExercisePicker open onClose={() => setPickerOpen(false)} onDone={handlePicked} />
       )}
+      {templateOpen && <TemplateModal open date={date} onClose={() => setTemplateOpen(false)} />}
     </div>
   )
 }

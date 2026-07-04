@@ -80,6 +80,14 @@ export interface SetAttribute {
   lastUsedAt: number
 }
 
+/** トレーニングメニューのテンプレート(種目×タグのリスト) */
+export interface Template {
+  id: string
+  name: string
+  items: { exerciseId: string; tagId: string }[]
+  createdAt: number
+}
+
 export interface Setting {
   key: string
   value: unknown

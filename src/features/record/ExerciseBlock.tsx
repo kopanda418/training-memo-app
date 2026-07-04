@@ -1,7 +1,25 @@
 import { useState } from 'react'
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
+import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { TransferModal } from '../../components/TransferModal'
-import { addSet, copyPreviousSession, getLastSet, moveBlockInDay } from '../../db/repository'
-import type { WorkoutSet } from '../../db/types'
+import {
+  addSet,
+  changeBlockTag,
+  copyPreviousSession,
+  getLastSet,
+  moveBlockInDay,
+  reorderSetsInBlock,
+} from '../../db/repository'
+import { NO_TAG, type WorkoutSet } from '../../db/types'
+import { TagSelectModal } from '../settings/TagSelectModal'
 import { PreviousRecordPanel } from './PreviousRecordPanel'
 import { SetRow } from './SetRow'
 
@@ -32,6 +50,21 @@ export function ExerciseBlock({
 }: ExerciseBlockProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [transferOpen, setTransferOpen] = useState(false)
+  const [tagModalOpen, setTagModalOpen] = useState(false)
+
+  // セット番号の長押し(250ms)でドラッグ開始(タップやスクロールと衝突させない)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  )
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return
+    const ids = sets.map((s) => s.id)
+    const from = ids.indexOf(String(active.id))
+    const to = ids.indexOf(String(over.id))
+    if (from < 0 || to < 0) return
+    void reorderSetsInBlock(date, exerciseId, tagId, arrayMove(ids, from, to))
+  }
 
   const showMessage = (text: string) => {
     setMessage(text)
@@ -61,11 +94,18 @@ export function ExerciseBlock({
     <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <header className="mb-1 flex items-center gap-2">
         <h2 className="min-w-0 truncate text-sm font-bold">{exerciseName}</h2>
-        {tagName && (
-          <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300">
-            {tagName}
-          </span>
-        )}
+        {/* タグは後から変更できる(タップでタグ選択。日内のこのブロック全セットに適用) */}
+        <button
+          type="button"
+          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
+            tagName
+              ? 'bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300'
+              : 'border border-dashed border-slate-300 text-slate-400 dark:border-slate-600'
+          }`}
+          onClick={() => setTagModalOpen(true)}
+        >
+          {tagName ?? '＋タグ'}
+        </button>
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {sets.length > 0 && (
             <>
@@ -120,11 +160,20 @@ export function ExerciseBlock({
       </header>
       {message && <p className="py-1 text-xs text-amber-600 dark:text-amber-400">{message}</p>}
       <PreviousRecordPanel date={date} exerciseId={exerciseId} tagId={tagId} />
-      <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
-        {sets.map((set, i) => (
-          <SetRow key={set.id} set={set} index={i} prevSet={i > 0 ? sets[i - 1] : undefined} />
-        ))}
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis]}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={sets.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+          <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+            {sets.map((set, i) => (
+              <SetRow key={set.id} set={set} index={i} prevSet={i > 0 ? sets[i - 1] : undefined} />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
       <button
         type="button"
         className="mt-1 w-full rounded-lg border border-dashed border-slate-300 py-2 text-sm text-slate-500 active:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:active:bg-slate-700"
@@ -132,6 +181,15 @@ export function ExerciseBlock({
       >
         ＋ セット追加
       </button>
+      {tagModalOpen && (
+        <TagSelectModal
+          open
+          allowClear={tagId !== NO_TAG}
+          clearLabel="タグなしにする"
+          onClose={() => setTagModalOpen(false)}
+          onSelect={(newTagId) => void changeBlockTag(date, exerciseId, tagId, newTagId ?? NO_TAG)}
+        />
+      )}
       {transferOpen && (
         <TransferModal
           open

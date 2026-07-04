@@ -10,10 +10,17 @@ interface TagSelectModalProps {
   /** undefined で解除 */
   onSelect: (tagId: string | undefined) => void
   allowClear?: boolean
+  clearLabel?: string
 }
 
 /** 種目タグの選択モーダル(検索 + 新規作成)。設定のクイックボタン構成などに使う */
-export function TagSelectModal({ open, onClose, onSelect, allowClear }: TagSelectModalProps) {
+export function TagSelectModal({
+  open,
+  onClose,
+  onSelect,
+  allowClear,
+  clearLabel = 'このボタンを未設定にする',
+}: TagSelectModalProps) {
   const [query, setQuery] = useState('')
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
 
@@ -69,7 +76,7 @@ export function TagSelectModal({ open, onClose, onSelect, allowClear }: TagSelec
             className="py-2 text-center text-sm text-red-500"
             onClick={() => pick(undefined)}
           >
-            このボタンを未設定にする
+            {clearLabel}
           </button>
         )}
       </div>

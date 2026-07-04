@@ -8,6 +8,7 @@ import {
   addExercise,
   deleteExercise,
   listBodyParts,
+  moveExerciseOrder,
   renameExercise,
 } from '../../db/repository'
 
@@ -115,16 +116,34 @@ export function ExerciseManagerPage() {
       {message && <p className="text-xs text-red-500">{message}</p>}
 
       <div className="flex flex-col gap-1.5">
-        {filtered.map((exercise) => (
+        {filtered.map((exercise, i) => (
           <div
             key={exercise.id}
-            className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 dark:border-slate-700"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-700"
           >
             <CommitInput
               className="min-w-0 flex-1 bg-transparent py-1 text-sm"
               value={exercise.name}
               onCommit={(t) => void renameExercise(exercise.id, t)}
             />
+            <button
+              type="button"
+              aria-label="上へ移動"
+              className="shrink-0 px-1.5 text-sm text-slate-400 active:text-sky-500 disabled:opacity-25"
+              disabled={i === 0}
+              onClick={() => void moveExerciseOrder(exercise.id, 'up')}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              aria-label="下へ移動"
+              className="shrink-0 px-1.5 text-sm text-slate-400 active:text-sky-500 disabled:opacity-25"
+              disabled={i === filtered.length - 1}
+              onClick={() => void moveExerciseOrder(exercise.id, 'down')}
+            >
+              ↓
+            </button>
             <button
               type="button"
               aria-label={`${exercise.name}を削除`}

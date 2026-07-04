@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { CommitInput } from '../../components/CommitInput'
 import { deleteSet, setSetAttribute, updateSet } from '../../db/repository'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, useSetting } from '../../db/settings'
@@ -54,6 +56,11 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
   ).filter((q) => q.trim() !== '')
   const [attrPickerOpen, setAttrPickerOpen] = useState(false)
 
+  // セット番号を長押し → ドラッグで並び替え(挿し込み)。番号部分だけが持ち手
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: set.id,
+  })
+
   // 自重セットは「体重 + 加重」で 1RM 換算(体重未登録なら換算しない)
   const load = effectiveLoad(set, bodyWeight)
   const oneRm = load !== undefined ? estimateOneRepMax(load, set.reps) : 0
@@ -69,9 +76,22 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
   }
 
   return (
-    <div className="py-1.5">
+    <div
+      ref={setNodeRef}
+      className={`py-1.5 ${isDragging ? 'relative z-10 rounded-lg bg-slate-100 opacity-90 dark:bg-slate-800' : ''}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
       <div className="flex items-center gap-1">
-        <span className="w-4 shrink-0 text-center text-xs text-slate-400">{index + 1}</span>
+        <span
+          {...attributes}
+          {...listeners}
+          role="button"
+          aria-label="長押しして並び替え"
+          className="w-4 shrink-0 cursor-grab text-center text-xs text-slate-400"
+          style={{ touchAction: 'none' }}
+        >
+          {index + 1}
+        </span>
         <CopyBtn
           label="前セットの重量をコピー"
           disabled={!prevSet}
@@ -129,8 +149,14 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
         <CommitInput
           inputMode="numeric"
           className={`w-9 text-base font-bold ${numBoxClass}`}
-          value={String(set.reps)}
+          value={set.reps > 0 ? String(set.reps) : ''}
+          placeholder="-"
           onCommit={(t) => {
+            // 空欄 = 未実施(0 として保存し、表示は空欄・1RM 非表示)
+            if (t.trim() === '') {
+              void updateSet(set.id, { reps: 0 })
+              return
+            }
             const n = parseNum(t)
             if (n !== undefined) void updateSet(set.id, { reps: Math.round(n) })
           }}
