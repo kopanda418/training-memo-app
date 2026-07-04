@@ -321,6 +321,9 @@ describe('テンプレート', () => {
     const sets = await listSetsByDate('2026-07-04')
     expect(sets).toHaveLength(3) // ex1×heavy の前回2セット + ex2 の前回1セット
     expect(sets.filter((s) => s.exerciseId === ex1.id && s.tagId === heavy.id)).toHaveLength(2)
+    // 重量はコピーされるが実績レップは空欄(0)
+    expect(sets.map((s) => s.weight).sort((a, b) => a - b)).toEqual([50, 100, 100])
+    expect(sets.every((s) => s.reps === 0)).toBe(true)
 
     await deleteTemplate(template.id)
     expect(await listTemplates()).toHaveLength(0)

@@ -171,6 +171,7 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
           ✕
         </button>
       </div>
+      {/* メモ行(全幅で見やすく)と属性+1RM 行は分ける */}
       <div className="mt-0.5 flex items-center gap-1 pl-5">
         <CopyBtn
           label="前セットのコメントをコピー"
@@ -183,6 +184,8 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
           placeholder="メモ"
           onCommit={(t) => void updateSet(set.id, { memo: t.trim() || undefined })}
         />
+      </div>
+      <div className="mt-1 flex items-center gap-1 pl-5">
         {set.attribute ? (
           <button
             type="button"
@@ -214,7 +217,7 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
           </div>
         )}
         {oneRm > 0 && (
-          <span className="shrink-0 text-[10px] text-slate-400">
+          <span className="ml-auto shrink-0 text-[10px] text-slate-400">
             1RM {Math.round(oneRm * 10) / 10}kg
           </span>
         )}

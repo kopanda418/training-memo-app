@@ -152,6 +152,7 @@ export async function copyPreviousSession(
   targetDate: string,
   exerciseId: string,
   tagId: string = NO_TAG,
+  options?: { clearReps?: boolean },
 ): Promise<number> {
   return db.transaction('rw', [db.sets, db.days], async () => {
     const history = await db.sets.where('[exerciseId+tagId]').equals([exerciseId, tagId]).toArray()
@@ -170,6 +171,8 @@ export async function copyPreviousSession(
         ...s,
         id: crypto.randomUUID(),
         date: targetDate,
+        // clearReps: 実績はこれから積むので空欄にする(テンプレート展開用)
+        reps: options?.clearReps ? 0 : s.reps,
         orderInDay: order++,
         createdAt: now,
       })),
@@ -368,7 +371,10 @@ export async function applyTemplate(date: string, templateId: string): Promise<n
   const template = await db.templates.get(templateId)
   if (!template) return 0
   for (const item of template.items) {
-    const copied = await copyPreviousSession(date, item.exerciseId, item.tagId)
+    // 重量・目標はコピーするが、実績レップはこれから積むので空欄(0)にする
+    const copied = await copyPreviousSession(date, item.exerciseId, item.tagId, {
+      clearReps: true,
+    })
     if (copied === 0) {
       const last = await getLastSet(item.exerciseId, item.tagId)
       await addSet({
@@ -377,7 +383,7 @@ export async function applyTemplate(date: string, templateId: string): Promise<n
         tagId: item.tagId,
         weight: last?.weight ?? 20,
         isBodyweight: last?.isBodyweight,
-        reps: last?.reps ?? 10,
+        reps: 0,
         targetReps: last?.targetReps,
         unit: last?.unit ?? 'kg',
       })
