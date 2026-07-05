@@ -226,7 +226,8 @@ export function WeeklyView() {
             const isCurrent = bar.week === thisWeek
             const isBase = bar.week === baseWeek
             return (
-              <div key={bar.week} className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
+              // 親に高さ(h-full)がないと % 高さが 0 に解決されてバーが消える
+              <div key={bar.week} className="flex h-full min-w-0 flex-1 items-end">
                 <div
                   title={`${formatWeekLabel(bar.week)}: ${
                     barMetric === 'volume' ? formatVolume(bar.value) : `${bar.value}セット`

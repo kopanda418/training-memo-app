@@ -1,43 +1,33 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { Modal } from '../../components/Modal'
 import { db } from '../../db/db'
 import { useMasters } from '../../db/hooks'
 import { useSetting } from '../../db/settings'
-import { estimateOneRepMax } from '../../lib/oneRepMax'
-import { effectiveLoad } from '../../lib/setFormat'
+import { formatDateLabel } from '../../lib/date'
+import { computeMaxRows, type BestEntry, type MaxRow } from '../../lib/maxStats'
 
-interface MaxRow {
-  exerciseId: string
-  tagId: string
-  bestLoad: number
-  bestReps: number
-  bestRm: number
-}
+const round1 = (v: number) => Math.round(v * 10) / 10
 
-/** 種目×タグごとの MAX 記録一覧(ウォームアップ・実績空欄は除外) */
+/** 種目×タグごとの MAX 記録一覧。行タップで達成日・内訳の詳細を表示 */
 export function MaxView() {
   const sets = useLiveQuery(() => db.sets.toArray(), [])
   const bodyWeight = useSetting<number>('bodyWeight')
   const { exerciseName, tagName } = useMasters()
+  const [selected, setSelected] = useState<MaxRow | null>(null)
 
-  const rows = useMemo(() => {
-    const map = new Map<string, MaxRow>()
-    for (const s of sets ?? []) {
-      if (s.isWarmup || s.reps <= 0) continue
-      const load = effectiveLoad(s, bodyWeight)
-      if (load === undefined) continue
-      const key = `${s.exerciseId}|${s.tagId}`
-      let row = map.get(key)
-      if (!row) {
-        row = { exerciseId: s.exerciseId, tagId: s.tagId, bestLoad: 0, bestReps: 0, bestRm: 0 }
-        map.set(key, row)
-      }
-      row.bestLoad = Math.max(row.bestLoad, load)
-      row.bestReps = Math.max(row.bestReps, s.reps)
-      row.bestRm = Math.max(row.bestRm, estimateOneRepMax(load, s.reps))
-    }
-    return [...map.values()].sort((a, b) => b.bestRm - a.bestRm)
-  }, [sets, bodyWeight])
+  const rows = useMemo(() => computeMaxRows(sets ?? [], bodyWeight), [sets, bodyWeight])
+
+  const detailRow = (label: string, entry: BestEntry, value: string) => (
+    <div className="flex items-baseline gap-2 py-1.5">
+      <span className="w-20 shrink-0 text-xs text-slate-400">{label}</span>
+      <span className="tabular text-base font-bold">{value}</span>
+      <span className="text-xs text-slate-400">
+        ({round1(entry.load)}kg × {entry.reps}回)
+      </span>
+      <span className="ml-auto shrink-0 text-xs text-slate-400">{formatDateLabel(entry.date)}</span>
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -48,36 +38,64 @@ export function MaxView() {
         ) : (
           <ul className="mt-1 divide-y divide-slate-100 dark:divide-slate-800">
             <li className="flex items-center gap-2 py-1 text-[10px] text-slate-400">
-              <span className="min-w-0 flex-1">種目</span>
+              <span className="min-w-0 flex-1">種目(タップで詳細)</span>
               <span className="w-16 shrink-0 text-right">重量</span>
               <span className="w-10 shrink-0 text-right">回数</span>
               <span className="w-16 shrink-0 text-right">推定1RM</span>
             </li>
             {rows.map((row) => (
-              <li key={`${row.exerciseId}|${row.tagId}`} className="flex items-center gap-2 py-2">
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {exerciseName(row.exerciseId)}
-                  {tagName(row.tagId) && (
-                    <span className="ml-1 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300">
-                      {tagName(row.tagId)}
-                    </span>
-                  )}
-                </span>
-                <span className="tabular w-16 shrink-0 text-right text-sm font-bold">
-                  {Math.round(row.bestLoad * 10) / 10}kg
-                </span>
-                <span className="tabular w-10 shrink-0 text-right text-sm">{row.bestReps}回</span>
-                <span className="tabular w-16 shrink-0 text-right text-sm font-bold text-sky-500">
-                  {Math.round(row.bestRm * 10) / 10}kg
-                </span>
+              <li key={`${row.exerciseId}|${row.tagId}`}>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 py-2 text-left active:bg-slate-50 dark:active:bg-slate-800"
+                  onClick={() => setSelected(row)}
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {exerciseName(row.exerciseId)}
+                    {tagName(row.tagId) && (
+                      <span className="ml-1 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300">
+                        {tagName(row.tagId)}
+                      </span>
+                    )}
+                  </span>
+                  <span className="tabular w-16 shrink-0 text-right text-sm font-bold">
+                    {round1(row.load.value)}kg
+                  </span>
+                  <span className="tabular w-10 shrink-0 text-right text-sm">
+                    {row.reps.value}回
+                  </span>
+                  <span className="tabular w-16 shrink-0 text-right text-sm font-bold text-sky-500">
+                    {round1(row.oneRm.value)}kg
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
         )}
         <p className="mt-1 text-[10px] text-slate-400">
-          ウォームアップ・実績空欄は除外。自重セットは体重+加重で換算(体重未登録分は除外)
+          各ベストは独立(回数は重量に関係なく最大レップ)。ウォームアップ・実績空欄は除外。自重セットは体重+加重で換算(体重未登録分は除外)
         </p>
       </section>
+
+      {selected && (
+        <Modal
+          open
+          onClose={() => setSelected(null)}
+          title={`👑 ${exerciseName(selected.exerciseId)}${
+            tagName(selected.tagId) ? ` / ${tagName(selected.tagId)}` : ''
+          }`}
+        >
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {detailRow('重量ベスト', selected.load, `${round1(selected.load.value)}kg`)}
+            {detailRow('回数ベスト', selected.reps, `${selected.reps.value}回`)}
+            {detailRow('推定1RM', selected.oneRm, `${round1(selected.oneRm.value)}kg`)}
+          </div>
+          <p className="mt-2 text-[10px] text-slate-400">
+            日付はその値を最初に達成した日(最古)。心当たりのない記録は、該当日の軽いセットに
+            W(ウォームアップ)を付けると集計から外れます
+          </p>
+        </Modal>
+      )}
     </div>
   )
 }
