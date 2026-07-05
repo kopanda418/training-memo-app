@@ -14,6 +14,7 @@ import {
   deleteSetAttribute,
   deleteTag,
   deleteTemplate,
+  detectMaxUpdate,
   listBodyParts,
   listTemplates,
   renameExercise,
@@ -325,6 +326,46 @@ describe('reorderSetsInBlock(セットの並び替え)', () => {
     const sets = await listSetsByDate('2026-07-04')
     expect(sets.map((s) => s.weight)).toEqual([100, 40, 105, 50])
     expect(sets.map((s) => s.orderInDay)).toEqual([0, 1, 2, 3])
+  })
+})
+
+describe('detectMaxUpdate(MAX 更新判定)', () => {
+  it('過去ベスト超えで通知、更新なし・初記録・ウォームアップは null', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    const first = await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
+    // 初記録は通知しない
+    expect(await detectMaxUpdate(first.id)).toBeNull()
+
+    // 重量も推定1RMも下回る → null
+    const lower = await addSet({ date: '2026-07-05', exerciseId: ex.id, weight: 90, reps: 3 })
+    expect(await detectMaxUpdate(lower.id)).toBeNull()
+
+    // 重量ベスト更新
+    const heavier = await addSet({ date: '2026-07-05', exerciseId: ex.id, weight: 105, reps: 1 })
+    const message = await detectMaxUpdate(heavier.id)
+    expect(message).toContain('ベスト更新')
+    expect(message).toContain('105')
+
+    // ウォームアップは対象外
+    const warmup = await addSet({
+      date: '2026-07-05',
+      exerciseId: ex.id,
+      weight: 200,
+      reps: 1,
+      isWarmup: true,
+    })
+    expect(await detectMaxUpdate(warmup.id)).toBeNull()
+
+    // タグ違いは別集計(こちらでは初記録扱い → null)
+    const [heavy] = await db.tags.toArray()
+    const tagged = await addSet({
+      date: '2026-07-05',
+      exerciseId: ex.id,
+      tagId: heavy.id,
+      weight: 50,
+      reps: 5,
+    })
+    expect(await detectMaxUpdate(tagged.id)).toBeNull()
   })
 })
 

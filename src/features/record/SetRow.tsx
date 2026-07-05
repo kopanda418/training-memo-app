@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { CommitInput } from '../../components/CommitInput'
-import { deleteSet, setSetAttribute, updateSet } from '../../db/repository'
+import { showToast } from '../../components/Toast'
+import { deleteSet, detectMaxUpdate, setSetAttribute, updateSet } from '../../db/repository'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, useSetting } from '../../db/settings'
 import type { WorkoutSet } from '../../db/types'
 import { estimateOneRepMax } from '../../lib/oneRepMax'
@@ -65,6 +66,13 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
   const load = effectiveLoad(set, bodyWeight)
   const oneRm = load !== undefined ? estimateOneRepMax(load, set.reps) : 0
 
+  /** 重量・実績の確定後に MAX 更新を判定して祝福トーストを出す */
+  const commitAndCheckMax = async (changes: Parameters<typeof updateSet>[1]) => {
+    await updateSet(set.id, changes)
+    const message = await detectMaxUpdate(set.id)
+    if (message) showToast(message)
+  }
+
   const toggleBodyweight = () => {
     if (set.isBodyweight) {
       // OFF: 加重分の数値はそのまま通常重量として残す
@@ -114,7 +122,7 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
           value={String(set.weight)}
           onCommit={(t) => {
             const n = parseNum(t)
-            if (n !== undefined) void updateSet(set.id, { weight: n })
+            if (n !== undefined) void commitAndCheckMax({ weight: n })
           }}
         />
         <span className="shrink-0 text-xs text-slate-400">{set.unit}</span>
@@ -160,7 +168,7 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
               return
             }
             const n = parseNum(t)
-            if (n !== undefined) void updateSet(set.id, { reps: Math.round(n) })
+            if (n !== undefined) void commitAndCheckMax({ reps: Math.round(n) })
           }}
         />
         <span className="shrink-0 text-xs text-slate-400">回</span>

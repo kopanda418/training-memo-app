@@ -1,5 +1,8 @@
 import { groupSetsIntoBlocks } from '../lib/groupSets'
+import { estimateOneRepMax } from '../lib/oneRepMax'
+import { effectiveLoad } from '../lib/setFormat'
 import { db } from './db'
+import { getSetting } from './settings'
 import { NO_TAG, type Day, type Tag, type WeightUnit, type WorkoutSet } from './types'
 
 export interface NewSetInput {
@@ -341,6 +344,48 @@ export async function changeBlockTag(
     const targets = sets.filter((s) => s.exerciseId === exerciseId && s.tagId === fromTagId)
     await db.sets.bulkPut(targets.map((s) => ({ ...s, tagId: toTagId })))
   })
+}
+
+// ---- MAX 記録 ----
+
+/**
+ * セットの値が種目×タグの過去ベスト(重量 / 推定1RM)を更新したか判定する。
+ * 更新していれば通知用メッセージを、していなければ null を返す。
+ * ウォームアップ・実績空欄・換算不能な自重は対象外。初記録(過去データなし)は通知しない。
+ */
+export async function detectMaxUpdate(setId: string): Promise<string | null> {
+  const set = await db.sets.get(setId)
+  if (!set || set.isWarmup || set.reps <= 0) return null
+  const bodyWeight = await getSetting<number>('bodyWeight')
+  const load = effectiveLoad(set, bodyWeight)
+  if (load === undefined || load <= 0) return null
+
+  const history = await db.sets
+    .where('[exerciseId+tagId]')
+    .equals([set.exerciseId, set.tagId])
+    .toArray()
+  const others = history.filter((s) => s.id !== set.id && !s.isWarmup && s.reps > 0)
+  if (others.length === 0) return null
+
+  let bestLoad = 0
+  let bestRm = 0
+  for (const s of others) {
+    const l = effectiveLoad(s, bodyWeight)
+    if (l === undefined) continue
+    bestLoad = Math.max(bestLoad, l)
+    bestRm = Math.max(bestRm, estimateOneRepMax(l, s.reps))
+  }
+
+  const updates: string[] = []
+  if (load > bestLoad) updates.push(`重量 ${Math.round(load * 10) / 10}kg`)
+  const rm = estimateOneRepMax(load, set.reps)
+  if (rm > bestRm) updates.push(`推定1RM ${Math.round(rm * 10) / 10}kg`)
+  if (updates.length === 0) return null
+
+  const exercise = await db.exercises.get(set.exerciseId)
+  const tag = set.tagId === NO_TAG ? undefined : await db.tags.get(set.tagId)
+  const name = `${exercise?.name ?? ''}${tag ? `(${tag.name})` : ''}`
+  return `👑 ${name} ベスト更新! ${updates.join(' / ')}`
 }
 
 // ---- テンプレート(トレーニングメニュー) ----

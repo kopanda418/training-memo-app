@@ -1,4 +1,5 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router'
+import { ToastHost } from '../components/Toast'
 import { TabBar } from './TabBar'
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage'
 import { HistoryPage } from '../features/history/HistoryPage'
@@ -27,6 +28,7 @@ export default function App() {
           </Routes>
         </main>
         <TabBar />
+        <ToastHost />
       </div>
     </HashRouter>
   )
