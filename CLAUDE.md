@@ -46,4 +46,6 @@ npm run lint     # ESLint + Prettier チェック
 - コミットは機能単位で小さく。Conventional Commits(`feat:` `fix:` `docs:` `refactor:` `chore:` `test:`)
 - UI テキストは日本語。日付キーは `YYYY-MM-DD` 文字列(端末ローカルタイムゾーン基準)
 - iOS Safari (16.4+) が動作基準。PC の Chrome で動いても iOS で動かない API がある(Wake Lock・通知・vibration 等は `docs/architecture.md` の「iOS 制約」を確認)
+- **デプロイのたびに `src/app/version.ts` の APP_VERSION を必ずインクリメント**(パッチ +1)。設定画面に表示され、ユーザーが配信版を確認する唯一の手段
+- デプロイ後は Pages のビルド完了(`gh api .../pages/builds/latest` が built)と、配信 HTML のバンドル名一致を確認してから完了報告する(ビルドが building のまま固まることがある → `gh api -X POST .../pages/builds` で再要求)
 - **セッション終了時は `/handoff` を実行**(STATUS.md 更新 + コミット)

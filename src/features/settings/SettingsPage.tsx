@@ -7,6 +7,7 @@ import { exportData, importData } from '../../db/backup'
 import { db } from '../../db/db'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, setSetting, useSetting } from '../../db/settings'
 import { todayString } from '../../lib/date'
+import { APP_VERSION } from '../../app/version'
 import { AttributePicker } from '../record/AttributePicker'
 import { TagSelectModal } from './TagSelectModal'
 import { ViewportDiagnostics } from './ViewportDiagnostics'
@@ -80,7 +81,10 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-5 p-4">
-      <h1 className="text-lg font-bold">設定</h1>
+      <h1 className="flex items-baseline gap-2 text-lg font-bold">
+        設定
+        <span className="text-xs font-normal text-slate-400">{APP_VERSION}</span>
+      </h1>
 
       <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-bold">体重(自重セットの 1RM 換算用)</h2>
