@@ -52,6 +52,8 @@ export interface WorkoutSet {
   weight: number
   /** 自重で行ったセットか(表示は「自重」「自重+10kg」) */
   isBodyweight?: boolean
+  /** ウォームアップセットか(週間集計・MAX 判定から除外される。属性とは別の第一級フラグ) */
+  isWarmup?: boolean
   /** 実績レップ数 */
   reps: number
   /** 目標レップ数(任意) */

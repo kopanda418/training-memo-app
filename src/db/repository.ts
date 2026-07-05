@@ -9,6 +9,7 @@ export interface NewSetInput {
   tagId?: string
   weight: number
   isBodyweight?: boolean
+  isWarmup?: boolean
   reps: number
   targetReps?: number
   attribute?: string
@@ -29,6 +30,7 @@ export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
       tagId: input.tagId ?? NO_TAG,
       weight: input.weight,
       isBodyweight: input.isBodyweight,
+      isWarmup: input.isWarmup,
       reps: input.reps,
       targetReps: input.targetReps,
       attribute: input.attribute,
@@ -51,6 +53,7 @@ export async function updateSet(
       WorkoutSet,
       | 'weight'
       | 'isBodyweight'
+      | 'isWarmup'
       | 'reps'
       | 'targetReps'
       | 'attribute'
@@ -383,6 +386,7 @@ export async function applyTemplate(date: string, templateId: string): Promise<n
         tagId: item.tagId,
         weight: last?.weight ?? 20,
         isBodyweight: last?.isBodyweight,
+        isWarmup: last?.isWarmup,
         reps: 0,
         targetReps: last?.targetReps,
         unit: last?.unit ?? 'kg',

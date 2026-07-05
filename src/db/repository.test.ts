@@ -154,6 +154,29 @@ describe('copyPreviousSession(前回コピー)', () => {
     expect(await copyPreviousSession('2026-07-03', ex.id)).toBe(0)
     expect(await listSetsByDate('2026-07-03')).toHaveLength(0)
   })
+
+  it('ウォームアップ・自重フラグはコピーで引き継がれる', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    await addSet({
+      date: '2026-07-01',
+      exerciseId: ex.id,
+      weight: 40,
+      reps: 10,
+      isWarmup: true,
+    })
+    await addSet({
+      date: '2026-07-01',
+      exerciseId: ex.id,
+      weight: 10,
+      reps: 6,
+      isBodyweight: true,
+    })
+
+    await copyPreviousSession('2026-07-03', ex.id)
+    const copied = await listSetsByDate('2026-07-03')
+    expect(copied[0].isWarmup).toBe(true)
+    expect(copied[1].isBodyweight).toBe(true)
+  })
 })
 
 describe('listRecordedDates', () => {

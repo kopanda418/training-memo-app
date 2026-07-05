@@ -78,7 +78,9 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
   return (
     <div
       ref={setNodeRef}
-      className={`py-1.5 ${isDragging ? 'relative z-10 rounded-lg bg-slate-100 opacity-90 dark:bg-slate-800' : ''}`}
+      className={`py-1.5 ${set.isWarmup && !isDragging ? 'opacity-55' : ''} ${
+        isDragging ? 'relative z-10 rounded-lg bg-slate-100 opacity-90 dark:bg-slate-800' : ''
+      }`}
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
       <div className="flex items-center gap-1">
@@ -186,6 +188,18 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
         />
       </div>
       <div className="mt-1 flex items-center gap-1 pl-5">
+        <button
+          type="button"
+          title="ウォームアップ(週間集計・MAX 判定から除外)"
+          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+            set.isWarmup
+              ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/60 dark:text-orange-300'
+              : 'border border-slate-200 text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700'
+          }`}
+          onClick={() => void updateSet(set.id, { isWarmup: !set.isWarmup || undefined })}
+        >
+          W
+        </button>
         {set.attribute ? (
           <button
             type="button"

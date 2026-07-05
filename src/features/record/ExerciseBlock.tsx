@@ -79,6 +79,7 @@ export function ExerciseBlock({
       tagId,
       weight: last?.weight ?? 20,
       isBodyweight: last?.isBodyweight,
+      isWarmup: last?.isWarmup,
       reps: last?.reps ?? 10,
       targetReps: last?.targetReps,
       unit: last?.unit ?? 'kg',
