@@ -9,10 +9,9 @@ const tabs = [
 
 export function TabBar() {
   return (
-    // セーフエリアのパディングは付けない: ラベルを画面最下部までフラットに置き、ホームインジケータは
-    // 重ねる(iOS 標準タブバーや参考アプリと同じ挙動。実機フィードバック3回目の根本対応)。
-    // after 疑似要素はバーと同色を画面外方向へ延長する保険(いかなる表示条件でも下に別色の帯を見せない)
-    <nav className="relative flex border-t border-slate-200 bg-white after:absolute after:inset-x-0 after:top-full after:h-16 after:bg-white dark:border-slate-800 dark:bg-slate-900 dark:after:bg-slate-900">
+    // 下端ぴったりだと低すぎるため 7px だけ浮かせる(実機フィードバックで調整済み)。
+    // after 疑似要素はバーと同色を画面外方向へ延長する保険(下に別色の帯を見せない)
+    <nav className="relative flex border-t border-slate-200 bg-white pb-[7px] after:absolute after:inset-x-0 after:top-full after:h-16 after:bg-white dark:border-slate-800 dark:bg-slate-900 dark:after:bg-slate-900">
       {tabs.map((tab) => (
         <NavLink
           key={tab.to}

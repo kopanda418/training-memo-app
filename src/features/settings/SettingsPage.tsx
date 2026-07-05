@@ -16,7 +16,6 @@ import {
 } from '../../app/viewportFix'
 import { AttributePicker } from '../record/AttributePicker'
 import { TagSelectModal } from './TagSelectModal'
-import { ViewportDiagnostics } from './ViewportDiagnostics'
 
 const slotBtnClass =
   'flex-1 rounded-lg border border-slate-300 px-2 py-2 text-sm active:bg-slate-100 dark:border-slate-600 dark:active:bg-slate-700'
@@ -260,8 +259,6 @@ export function SettingsPage() {
           <span className="tabular w-12 shrink-0 text-right text-sm font-bold">{gapPx}px</span>
         </div>
       </section>
-
-      <ViewportDiagnostics />
 
       <p className="text-xs text-slate-400">
         テーマ・単位・バックアップの設定は今後のマイルストーンで追加予定
