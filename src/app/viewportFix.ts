@@ -1,45 +1,34 @@
 /**
  * iOS スタンドアロン PWA のビューポート短縮バグ補正。
- * 環境(Web クリップの状態や iOS バージョン)によって、レイアウトビューポートが
- * ステータスバー分短く上端固定される場合(→補正が必要)と、正しく下端に届く場合
- * (→補正するとタブバーが画面外に出る)の両方が確認されたため、
- * デフォルトは補正なしとし、設定画面から切り替えられるようにする。
+ * 環境によって必要な補正量が異なる(0 のことも、ステータスバー高より小さいこともある)ため、
+ * 補正量はユーザーが設定画面のスライダーで実際の見た目を確認しながら決める方式にする。
+ * 値は px 単位で localStorage に保存(0 = 補正なし、デフォルト)。
  */
 
-const STORAGE_KEY = 'bottomGapMode'
+const STORAGE_KEY = 'bottomGapPx'
+export const MAX_BOTTOM_GAP = 80
 
-export type BottomGapMode = 'off' | 'auto'
-
-export function getBottomGapMode(): BottomGapMode {
-  return localStorage.getItem(STORAGE_KEY) === 'auto' ? 'auto' : 'off'
+export function getBottomGapPx(): number {
+  const n = Number(localStorage.getItem(STORAGE_KEY))
+  return Number.isFinite(n) ? Math.min(Math.max(n, 0), MAX_BOTTOM_GAP) : 0
 }
 
-export function setBottomGapMode(mode: BottomGapMode) {
-  localStorage.setItem(STORAGE_KEY, mode)
-  updateViewportGap()
+export function setBottomGapPx(px: number) {
+  const clamped = Math.min(Math.max(Math.round(px), 0), MAX_BOTTOM_GAP)
+  localStorage.setItem(STORAGE_KEY, String(clamped))
+  applyBottomGap()
 }
 
-/** 補正量の候補(実測値)。診断表示にも使う */
+/** 参考値: ビューポート短縮の実測量(この値が補正の目安になる) */
 export function measureGapCandidate(): number {
-  const standalone =
-    matchMedia('(display-mode: standalone)').matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  if (!standalone) return 0
   const missing = screen.height - window.innerHeight
-  const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sat'))
-  if (missing > 0 && Number.isFinite(safeTop) && safeTop > 0) {
-    return Math.min(missing, safeTop)
-  }
-  return 0
+  return missing > 0 ? missing : 0
 }
 
-export function updateViewportGap() {
-  const gap = getBottomGapMode() === 'auto' ? measureGapCandidate() : 0
-  document.documentElement.style.setProperty('--bottom-gap', `${gap}px`)
+function applyBottomGap() {
+  document.documentElement.style.setProperty('--bottom-gap', `${getBottomGapPx()}px`)
 }
 
 export function installViewportFix() {
-  updateViewportGap()
-  window.addEventListener('resize', () => setTimeout(updateViewportGap, 50))
-  window.addEventListener('orientationchange', () => setTimeout(updateViewportGap, 300))
+  applyBottomGap()
 }

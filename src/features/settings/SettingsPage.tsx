@@ -9,10 +9,10 @@ import { DEFAULT_QUICK_SET_ATTRIBUTES, setSetting, useSetting } from '../../db/s
 import { todayString } from '../../lib/date'
 import { APP_VERSION } from '../../app/version'
 import {
-  getBottomGapMode,
+  MAX_BOTTOM_GAP,
+  getBottomGapPx,
   measureGapCandidate,
-  setBottomGapMode,
-  type BottomGapMode,
+  setBottomGapPx,
 } from '../../app/viewportFix'
 import { AttributePicker } from '../record/AttributePicker'
 import { TagSelectModal } from './TagSelectModal'
@@ -31,11 +31,11 @@ export function SettingsPage() {
   const [attrSlotOpen, setAttrSlotOpen] = useState<number | null>(null)
   const [tagSlotOpen, setTagSlotOpen] = useState<number | null>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
-  const [gapMode, setGapMode] = useState<BottomGapMode>(getBottomGapMode())
+  const [gapPx, setGapPx] = useState<number>(getBottomGapPx())
 
-  const changeGapMode = (mode: BottomGapMode) => {
-    setBottomGapMode(mode)
-    setGapMode(mode)
+  const changeGapPx = (px: number) => {
+    setBottomGapPx(px)
+    setGapPx(getBottomGapPx())
   }
 
   const handleExport = async () => {
@@ -226,32 +226,38 @@ export function SettingsPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-bold">タブバー位置の補正</h2>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          タブバーの下に空間ができる場合は「補正あり」に、タブバーが画面外に隠れる場合は「補正なし」にしてください(現在の補正候補値:
-          {measureGapCandidate()}px)
+          タブバーの下に空間ができる場合、スライダーを動かすと
+          <span className="font-bold">その場でタブバーが下に移動</span>
+          します。空間がちょうど消える値に合わせてください(0 = 補正なし。参考:
+          ビューポート短縮の実測値 {measureGapCandidate()}px)
         </p>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-3 flex items-center gap-2">
           <button
             type="button"
-            className={`flex-1 rounded-lg py-2.5 text-sm font-bold ${
-              gapMode === 'off'
-                ? 'bg-sky-600 text-white'
-                : 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
-            }`}
-            onClick={() => changeGapMode('off')}
+            aria-label="補正を1px減らす"
+            className="h-9 w-9 shrink-0 rounded-full border border-slate-300 text-lg leading-none text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
+            onClick={() => changeGapPx(gapPx - 1)}
           >
-            補正なし(標準)
+            −
           </button>
+          <input
+            type="range"
+            min={0}
+            max={MAX_BOTTOM_GAP}
+            step={1}
+            value={gapPx}
+            className="min-w-0 flex-1 accent-sky-500"
+            onChange={(e) => changeGapPx(Number(e.target.value))}
+          />
           <button
             type="button"
-            className={`flex-1 rounded-lg py-2.5 text-sm font-bold ${
-              gapMode === 'auto'
-                ? 'bg-sky-600 text-white'
-                : 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
-            }`}
-            onClick={() => changeGapMode('auto')}
+            aria-label="補正を1px増やす"
+            className="h-9 w-9 shrink-0 rounded-full border border-slate-300 text-lg leading-none text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
+            onClick={() => changeGapPx(gapPx + 1)}
           >
-            補正あり
+            ＋
           </button>
+          <span className="tabular w-12 shrink-0 text-right text-sm font-bold">{gapPx}px</span>
         </div>
       </section>
 
