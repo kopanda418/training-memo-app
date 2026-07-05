@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ModalProps {
   open: boolean
@@ -7,10 +8,14 @@ interface ModalProps {
   children: ReactNode
 }
 
-/** 画面下から出るボトムシート型モーダル */
+/**
+ * 画面下から出るボトムシート型モーダル。
+ * 呼び出し元が半透明(ウォームアップ行)や transform(ドラッグ)を持っていても
+ * 影響を受けないよう、document.body 直下へポータル描画する
+ */
 export function Modal({ open, onClose, title, children }: ModalProps) {
   if (!open) return null
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
       <button
         type="button"
@@ -25,6 +30,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
         {title && <h2 className="mb-3 text-base font-bold">{title}</h2>}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
