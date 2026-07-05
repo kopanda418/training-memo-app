@@ -8,6 +8,12 @@ import { db } from '../../db/db'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, setSetting, useSetting } from '../../db/settings'
 import { todayString } from '../../lib/date'
 import { APP_VERSION } from '../../app/version'
+import {
+  getBottomGapMode,
+  measureGapCandidate,
+  setBottomGapMode,
+  type BottomGapMode,
+} from '../../app/viewportFix'
 import { AttributePicker } from '../record/AttributePicker'
 import { TagSelectModal } from './TagSelectModal'
 import { ViewportDiagnostics } from './ViewportDiagnostics'
@@ -25,6 +31,12 @@ export function SettingsPage() {
   const [attrSlotOpen, setAttrSlotOpen] = useState<number | null>(null)
   const [tagSlotOpen, setTagSlotOpen] = useState<number | null>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
+  const [gapMode, setGapMode] = useState<BottomGapMode>(getBottomGapMode())
+
+  const changeGapMode = (mode: BottomGapMode) => {
+    setBottomGapMode(mode)
+    setGapMode(mode)
+  }
 
   const handleExport = async () => {
     const data = await exportData()
@@ -209,6 +221,38 @@ export function SettingsPage() {
             e.target.value = ''
           }}
         />
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-sm font-bold">タブバー位置の補正</h2>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          タブバーの下に空間ができる場合は「補正あり」に、タブバーが画面外に隠れる場合は「補正なし」にしてください(現在の補正候補値:
+          {measureGapCandidate()}px)
+        </p>
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            className={`flex-1 rounded-lg py-2.5 text-sm font-bold ${
+              gapMode === 'off'
+                ? 'bg-sky-600 text-white'
+                : 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
+            }`}
+            onClick={() => changeGapMode('off')}
+          >
+            補正なし(標準)
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded-lg py-2.5 text-sm font-bold ${
+              gapMode === 'auto'
+                ? 'bg-sky-600 text-white'
+                : 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
+            }`}
+            onClick={() => changeGapMode('auto')}
+          >
+            補正あり
+          </button>
+        </div>
       </section>
 
       <ViewportDiagnostics />
