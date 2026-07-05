@@ -7,13 +7,15 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,9 +27,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      # Pages のソースは gh-pages ブランチ(legacy 方式)。
-      # actions/deploy-pages 方式はこのリポジトリで原因不明の "Deployment failed, try again later"
-      # が続いたため切り替えた(docs/decisions.md ADR-008)
+      # バックアップ経路: gh-pages ブランチにも成果物を残す(legacy 方式へ戻せるように)
       - name: Push dist to gh-pages
         run: |
           cd dist
@@ -38,3 +38,16 @@ jobs:
           git add -A
           git commit -m "deploy ${{ github.sha }}"
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
