@@ -185,6 +185,11 @@ export async function copyPreviousSession(
   })
 }
 
+/** 期間内の全セット(週間集計用) */
+export async function listSetsInRange(fromDate: string, toDate: string): Promise<WorkoutSet[]> {
+  return db.sets.where('date').between(fromDate, toDate, true, true).toArray()
+}
+
 /** 期間内で記録(セット)がある日付の一覧(カレンダーのマーク用) */
 export async function listRecordedDates(fromDate: string, toDate: string): Promise<string[]> {
   const sets = await db.sets.where('date').between(fromDate, toDate, true, true).toArray()
