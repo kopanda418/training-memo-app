@@ -3,6 +3,13 @@
 /* ダークモードは <html> の .dark クラスで切り替える(class 戦略) */
 @custom-variant dark (&:where(.dark, .dark *));
 
+:root {
+  /* JS から env() の実値を読むための変数 */
+  --sat: env(safe-area-inset-top);
+  /* iOS スタンドアロンのビューポート短縮バグの補正量(main.tsx が実測して設定) */
+  --bottom-gap: 0px;
+}
+
 @theme {
   --color-surface: #ffffff;
   --color-surface-dark: #0f172a;

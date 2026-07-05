@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router'
 import { CommitInput } from '../../components/CommitInput'
+import { showToast } from '../../components/Toast'
+import { exportData, importData } from '../../db/backup'
 import { db } from '../../db/db'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, setSetting, useSetting } from '../../db/settings'
+import { todayString } from '../../lib/date'
 import { AttributePicker } from '../record/AttributePicker'
 import { TagSelectModal } from './TagSelectModal'
 import { ViewportDiagnostics } from './ViewportDiagnostics'
@@ -20,6 +23,44 @@ export function SettingsPage() {
 
   const [attrSlotOpen, setAttrSlotOpen] = useState<number | null>(null)
   const [tagSlotOpen, setTagSlotOpen] = useState<number | null>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
+
+  const handleExport = async () => {
+    const data = await exportData()
+    const file = new File([JSON.stringify(data)], `training-memo-backup-${todayString()}.json`, {
+      type: 'application/json',
+    })
+    // iOS では共有シート経由で「ファイルに保存」できる。非対応環境はダウンロード
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] })
+      } catch {
+        // 共有シートのキャンセルは正常系
+      }
+    } else {
+      const url = URL.createObjectURL(file)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.name
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+
+  const handleImportFile = async (file: File) => {
+    try {
+      const parsed: unknown = JSON.parse(await file.text())
+      if (
+        !window.confirm('現在のデータをすべてバックアップの内容に置き換えます。よろしいですか?')
+      ) {
+        return
+      }
+      await importData(parsed)
+      showToast('バックアップから復元しました')
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : '復元に失敗しました')
+    }
+  }
 
   const activeTags = tags?.filter((t) => !t.isArchived) ?? []
   const effectiveTagIds = quickTagIds ?? activeTags.slice(0, 3).map((t) => t.id)
@@ -126,6 +167,44 @@ export function SettingsPage() {
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-sm font-bold">バックアップ</h2>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          全データ(記録・種目・タグ・設定・テンプレート)を 1 つの JSON
+          ファイルに書き出し/復元できます。
+          <span className="font-bold text-amber-500">
+            ホーム画面のアイコンを削除するとデータも消えるため、定期的な書き出しを推奨します
+          </span>
+        </p>
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            className="flex-1 rounded-lg bg-sky-600 py-2.5 text-sm font-bold text-white active:bg-sky-700"
+            onClick={() => void handleExport()}
+          >
+            書き出す
+          </button>
+          <button
+            type="button"
+            className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-bold text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
+            onClick={() => importInputRef.current?.click()}
+          >
+            復元する
+          </button>
+        </div>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void handleImportFile(file)
+            e.target.value = ''
+          }}
+        />
       </section>
 
       <ViewportDiagnostics />

@@ -16,7 +16,11 @@ interface ModalProps {
 export function Modal({ open, onClose, title, children }: ModalProps) {
   if (!open) return null
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    // 高さの補正は App コンテナと同じ(--bottom-gap: iOS ビューポート短縮バグ対策)
+    <div
+      className="fixed inset-x-0 top-0 z-50 flex flex-col justify-end"
+      style={{ height: 'calc(100% + var(--bottom-gap, 0px))' }}
+    >
       <button
         type="button"
         aria-label="閉じる"

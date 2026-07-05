@@ -19,6 +19,30 @@ const restoreViewport = () => {
 document.addEventListener('focusout', () => setTimeout(restoreViewport, 50))
 window.visualViewport?.addEventListener('resize', () => setTimeout(restoreViewport, 50))
 
+// WebKit の既知バグ対策(実測で確認済み):
+// ステータスバー透過のスタンドアロン PWA では、描画キャンバスは画面全体に及ぶのに
+// レイアウトビューポートがステータスバー分だけ短く画面上端に固定されるため、
+// fixed 要素の bottom:0 が物理画面よりステータスバー高ぶん上に来る。
+// 差分(screen.height - innerHeight)と safe-area-inset-top の小さい方を補正量として
+// --bottom-gap に設定し、App のコンテナとモーダルを下へ延長する。バグのない環境では 0。
+const updateViewportGap = () => {
+  const standalone =
+    matchMedia('(display-mode: standalone)').matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  let gap = 0
+  if (standalone) {
+    const missing = screen.height - window.innerHeight
+    const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sat'))
+    if (missing > 0 && Number.isFinite(safeTop) && safeTop > 0) {
+      gap = Math.min(missing, safeTop)
+    }
+  }
+  document.documentElement.style.setProperty('--bottom-gap', `${gap}px`)
+}
+updateViewportGap()
+window.addEventListener('resize', () => setTimeout(updateViewportGap, 50))
+window.addEventListener('orientationchange', () => setTimeout(updateViewportGap, 300))
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

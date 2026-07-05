@@ -11,10 +11,13 @@ import { SettingsPage } from '../features/settings/SettingsPage'
 export default function App() {
   return (
     <HashRouter>
-      {/* fixed inset-0 で画面四辺に固定(dvh 依存だと iOS 実機で下部にすき間が出る) */}
+      {/* 画面四辺に固定。高さは 100% + --bottom-gap(iOS スタンドアロンのビューポート短縮バグ補正。main.tsx 参照) */}
       <div
-        className="fixed inset-0 flex flex-col"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        className="fixed inset-x-0 top-0 flex flex-col"
+        style={{
+          height: 'calc(100% + var(--bottom-gap, 0px))',
+          paddingTop: 'env(safe-area-inset-top)',
+        }}
       >
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <Routes>
