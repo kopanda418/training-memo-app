@@ -10,6 +10,7 @@ import {
   changeBlockTag,
   copyPreviousSession,
   deleteExercise,
+  deleteLocation,
   deleteSet,
   deleteSetAttribute,
   deleteTag,
@@ -114,6 +115,14 @@ describe('setDayLocation / listLocations', () => {
     await setDayLocation('2026-07-03', 'ジム')
     await setDayLocation('2026-07-03', '')
     expect((await getDay('2026-07-03'))?.locationId).toBeUndefined()
+  })
+
+  it('場所の削除は使用中ならブロックされ、未使用なら消せる', async () => {
+    await setDayLocation('2026-07-03', 'ジムA')
+    const [loc] = await db.locations.toArray()
+    expect((await deleteLocation(loc.id)).deleted).toBe(false)
+    await setDayLocation('2026-07-03', '') // 使用を解除
+    expect((await deleteLocation(loc.id)).deleted).toBe(true)
   })
 })
 

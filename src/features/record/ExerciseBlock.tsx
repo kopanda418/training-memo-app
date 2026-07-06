@@ -82,7 +82,7 @@ export function ExerciseBlock({
       isWarmup: last?.isWarmup,
       reps: last?.reps ?? 10,
       targetReps: last?.targetReps,
-      unit: last?.unit ?? 'kg',
+      unit: last?.unit,
     })
   }
 

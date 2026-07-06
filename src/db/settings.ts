@@ -7,7 +7,8 @@ export type SettingKey =
   | 'quickSetAttributes' // string[]: セット属性のクイックボタン(最大3)
   | 'quickExerciseTagIds' // string[]: 種目タグのクイックボタン(tag id、最大3)
   | 'wakeLockEnabled' // boolean: タイマー中の画面ロック防止(デフォルト true)
-  | 'theme' // 'light' | 'dark' | 'system'
+  | 'defaultUnit' // 'kg' | 'lbs': 新規セットの重量単位(デフォルト kg)
+  | 'theme' // 'light' | 'dark' | 'system'(デフォルト dark)
 
 /** セット属性クイックボタンの初期値(設定で変更可能) */
 export const DEFAULT_QUICK_SET_ATTRIBUTES = ['補助', 'RPE8', 'RPE9']

@@ -1,19 +1,24 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router'
+import { CommitInput } from '../../components/CommitInput'
 import { db } from '../../db/db'
 import {
+  deleteLocation,
   deleteSetAttribute,
   deleteTag,
+  listLocations,
   listSetAttributes,
+  renameLocation,
   type DeleteResult,
 } from '../../db/repository'
 
-/** 種目タグとセット属性の削除(記録で使用中はブロック) */
+/** 種目タグ・セット属性・場所の管理(記録で使用中は削除ブロック) */
 export function AttributeManagerPage() {
   const navigate = useNavigate()
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
   const attributes = useLiveQuery(() => listSetAttributes(), [])
+  const locations = useLiveQuery(() => listLocations(), [])
   const [message, setMessage] = useState<string | null>(null)
 
   const handleDelete = async (name: string, run: () => Promise<DeleteResult>) => {
@@ -37,7 +42,7 @@ export function AttributeManagerPage() {
         >
           ‹ 設定
         </button>
-        <h1 className="text-base font-bold">タグ・セット属性の管理</h1>
+        <h1 className="text-base font-bold">タグ・属性・場所の管理</h1>
       </header>
 
       {message && <p className="text-xs text-red-500">{message}</p>}
@@ -80,6 +85,31 @@ export function AttributeManagerPage() {
           <p className="py-2 text-xs text-slate-400">セット属性はありません</p>
         )}
         <p className="text-xs text-slate-400">追加はセット行の属性ボタンからできます</p>
+      </section>
+
+      <section className="flex flex-col gap-1.5">
+        <h2 className="text-sm font-bold">トレーニング場所</h2>
+        {locations?.map((loc) => (
+          <div key={loc.id} className={rowClass}>
+            <CommitInput
+              className="min-w-0 flex-1 bg-transparent"
+              value={loc.name}
+              onCommit={(t) => void renameLocation(loc.id, t)}
+            />
+            <button
+              type="button"
+              aria-label={`${loc.name}を削除`}
+              className="shrink-0 px-1 text-slate-300 active:text-red-500 dark:text-slate-600"
+              onClick={() => void handleDelete(loc.name, () => deleteLocation(loc.id))}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        {locations?.length === 0 && <p className="py-2 text-xs text-slate-400">場所はありません</p>}
+        <p className="text-xs text-slate-400">
+          名前はタップで編集できます。追加は記録画面の場所チップからできます
+        </p>
       </section>
     </div>
   )

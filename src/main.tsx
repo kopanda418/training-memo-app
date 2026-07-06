@@ -23,6 +23,9 @@ window.visualViewport?.addEventListener('resize', () => setTimeout(restoreViewpo
 // タブバー位置の補正(環境依存のため設定で切替。詳細は app/viewportFix.ts)
 installViewportFix()
 
+// IndexedDB の永続化を要求(ブラウザ都合のデータ削除を防ぎやすくする)
+void navigator.storage?.persist?.()
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

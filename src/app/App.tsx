@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router'
 import { ToastHost } from '../components/Toast'
 import { TimerOverlay } from '../features/timer/TimerOverlay'
 import { TabBar } from './TabBar'
+import { ThemeApplier } from './ThemeApplier'
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage'
 import { HistoryPage } from '../features/history/HistoryPage'
 import { RecordPage } from '../features/record/RecordPage'
@@ -34,6 +35,7 @@ export default function App() {
         <TabBar />
         <TimerOverlay />
         <ToastHost />
+        <ThemeApplier />
       </div>
     </HashRouter>
   )

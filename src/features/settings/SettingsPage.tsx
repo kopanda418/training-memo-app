@@ -24,6 +24,8 @@ export function SettingsPage() {
   const navigate = useNavigate()
   const bodyWeight = useSetting<number>('bodyWeight')
   const wakeLockEnabled = useSetting<boolean>('wakeLockEnabled')
+  const theme = useSetting<'light' | 'dark' | 'system'>('theme')
+  const defaultUnit = useSetting<'kg' | 'lbs'>('defaultUnit')
   const quickAttrs = useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
   const quickTagIds = useSetting<string[]>('quickExerciseTagIds')
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
@@ -99,6 +101,55 @@ export function SettingsPage() {
       </h1>
 
       <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-sm font-bold">テーマ</h2>
+        <div className="mt-2 flex gap-2">
+          {(
+            [
+              ['light', 'ライト'],
+              ['dark', 'ダーク'],
+              ['system', 'システム'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={`flex-1 rounded-lg py-2.5 text-sm font-bold ${
+                (theme ?? 'dark') === value
+                  ? 'bg-sky-600 text-white'
+                  : 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
+              }`}
+              onClick={() => void setSetting('theme', value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-sm font-bold">重量の単位(新規セット)</h2>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          既存セットの単位は変わりません。前セットからの引き継ぎが優先されます
+        </p>
+        <div className="mt-2 flex gap-2">
+          {(['kg', 'lbs'] as const).map((unit) => (
+            <button
+              key={unit}
+              type="button"
+              className={`flex-1 rounded-lg py-2.5 text-sm font-bold ${
+                (defaultUnit ?? 'kg') === unit
+                  ? 'bg-sky-600 text-white'
+                  : 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
+              }`}
+              onClick={() => void setSetting('defaultUnit', unit)}
+            >
+              {unit}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-bold">体重(自重セットの 1RM 換算用)</h2>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
           自重セットの 1RM は「体重 + 加重」で換算します。未登録の場合、自重セットの 1RM
@@ -136,7 +187,7 @@ export function SettingsPage() {
             className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700"
             onClick={() => navigate('/settings/attributes')}
           >
-            タグ・セット属性の管理 ›
+            タグ・属性・場所の管理 ›
           </button>
         </div>
       </section>

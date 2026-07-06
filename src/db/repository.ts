@@ -38,7 +38,8 @@ export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
       targetReps: input.targetReps,
       attribute: input.attribute,
       isAssisted: input.isAssisted ?? false,
-      unit: input.unit ?? 'kg',
+      // 単位の優先順: 明示指定(前セット引き継ぎ) > 設定のデフォルト > kg
+      unit: input.unit ?? ((await getSetting<WeightUnit>('defaultUnit')) || 'kg'),
       memo: input.memo,
       orderInDay,
       createdAt: Date.now(),
@@ -439,7 +440,7 @@ export async function applyTemplate(date: string, templateId: string): Promise<n
         isWarmup: last?.isWarmup,
         reps: 0,
         targetReps: last?.targetReps,
-        unit: last?.unit ?? 'kg',
+        unit: last?.unit,
       })
     }
   }
@@ -543,6 +544,22 @@ export async function deleteTag(id: string): Promise<DeleteResult> {
     const usedCount = await db.sets.filter((s) => s.tagId === id).count()
     if (usedCount > 0) return { deleted: false, usedCount }
     await db.tags.delete(id)
+    return { deleted: true }
+  })
+}
+
+export async function renameLocation(id: string, name: string): Promise<void> {
+  const trimmed = name.trim()
+  if (!trimmed) return
+  await db.locations.update(id, { name: trimmed })
+}
+
+/** 場所を削除する。日の記録で使用中なら削除せず件数を返す */
+export async function deleteLocation(id: string): Promise<DeleteResult> {
+  return db.transaction('rw', [db.locations, db.days], async () => {
+    const usedCount = await db.days.filter((d) => d.locationId === id).count()
+    if (usedCount > 0) return { deleted: false, usedCount }
+    await db.locations.delete(id)
     return { deleted: true }
   })
 }
