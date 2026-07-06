@@ -42,7 +42,14 @@ export function computeMaxRows(sets: WorkoutSet[], bodyWeight?: number): MaxRow[
     let row = map.get(key)
     if (!row) {
       const zero: BestEntry = { value: 0, date: s.date, load: 0, reps: 0 }
-      row = { exerciseId: s.exerciseId, tagId: s.tagId, load: zero, reps: zero, oneRm: zero, lastDate: s.date }
+      row = {
+        exerciseId: s.exerciseId,
+        tagId: s.tagId,
+        load: zero,
+        reps: zero,
+        oneRm: zero,
+        lastDate: s.date,
+      }
       map.set(key, row)
     }
     const entry: BestEntry = { value: 0, date: s.date, load, reps: s.reps }

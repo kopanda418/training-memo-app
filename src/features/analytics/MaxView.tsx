@@ -62,10 +62,18 @@ export function MaxView() {
         />
 
         <div className="mb-2 flex gap-1.5">
-          <button type="button" className={chipClass(sortKey === 'lastDate')} onClick={() => setSortKey('lastDate')}>
+          <button
+            type="button"
+            className={chipClass(sortKey === 'lastDate')}
+            onClick={() => setSortKey('lastDate')}
+          >
             最近やった順
           </button>
-          <button type="button" className={chipClass(sortKey === 'oneRm')} onClick={() => setSortKey('oneRm')}>
+          <button
+            type="button"
+            className={chipClass(sortKey === 'oneRm')}
+            onClick={() => setSortKey('oneRm')}
+          >
             推定1RM順
           </button>
         </div>

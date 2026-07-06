@@ -72,7 +72,9 @@ export class TrainingMemoDB extends Dexie {
         .filter((s) => typeof s.attribute === 'string' && s.attribute.length > 0)
         .toArray()
       await Promise.all(
-        withAttr.map((s) => sets.update(s.id, { attributes: [s.attribute!], attribute: undefined })),
+        withAttr.map((s) =>
+          sets.update(s.id, { attributes: [s.attribute!], attribute: undefined }),
+        ),
       )
     })
     // 初回作成時のみデフォルトマスタを投入

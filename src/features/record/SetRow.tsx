@@ -141,7 +141,9 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
         <CopyBtn
           label="前セットの RPE・レップ数をコピー"
           disabled={!prevSet}
-          onClick={() => prevSet && void updateSet(set.id, { rpe: prevSet.rpe, reps: prevSet.reps })}
+          onClick={() =>
+            prevSet && void updateSet(set.id, { rpe: prevSet.rpe, reps: prevSet.reps })
+          }
         />
         <span className="shrink-0 text-[10px] text-slate-400">RPE</span>
         <CommitInput
