@@ -1,5 +1,6 @@
 import { showToast } from '../../components/Toast'
 import { getSetting } from '../../db/settings'
+import { DEFAULT_SOUND, playSound, type SoundId } from './sounds'
 
 /**
  * インターバルタイマーのグローバルストア(useSyncExternalStore 用)。
@@ -43,23 +44,22 @@ let audioCtx: AudioContext | null = null
 let wakeLock: WakeLockSentinel | null = null
 let watcher: number | undefined
 
-function playFinishSound() {
+/** ユーザー操作起点で AudioContext を用意/resume する(iOS で音を鳴らす前提条件) */
+function ensureAudio(): AudioContext {
+  audioCtx ??= new AudioContext()
+  if (audioCtx.state === 'suspended') void audioCtx.resume()
+  return audioCtx
+}
+
+/** 終了音を鳴らす。設定タブの試聴でも使う(操作起点で呼ばれるので resume 済み) */
+export async function previewSound(id: SoundId) {
+  playSound(ensureAudio(), id)
+}
+
+async function playFinishSound() {
   if (!audioCtx) return
-  const t0 = audioCtx.currentTime
-  for (let i = 0; i < 3; i++) {
-    const start = t0 + i * 0.4
-    const osc = audioCtx.createOscillator()
-    const gain = audioCtx.createGain()
-    osc.type = 'sine'
-    osc.frequency.value = 880
-    gain.gain.setValueAtTime(0.0001, start)
-    gain.gain.exponentialRampToValueAtTime(0.6, start + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.35)
-    osc.connect(gain)
-    gain.connect(audioCtx.destination)
-    osc.start(start)
-    osc.stop(start + 0.4)
-  }
+  const id = (await getSetting<SoundId>('timerSound')) ?? DEFAULT_SOUND
+  playSound(audioCtx, id)
 }
 
 async function requestWakeLock() {
@@ -86,7 +86,7 @@ function stopWatcher() {
 function finish() {
   stopWatcher()
   releaseWakeLock()
-  playFinishSound()
+  void playFinishSound()
   setState({ endsAt: null })
   showToast('⏱ インターバル終了!')
 }
@@ -120,8 +120,7 @@ export function closeTimerOverlay() {
 export async function startTimer(sec: number) {
   if (sec <= 0) return
   // ユーザー操作起点でないと iOS で音が出ないため、ここで AudioContext を用意して resume する
-  audioCtx ??= new AudioContext()
-  if (audioCtx.state === 'suspended') void audioCtx.resume()
+  ensureAudio()
   setState({ endsAt: Date.now() + sec * 1000, totalSec: sec })
   startWatcher()
   if ((await getSetting<boolean>('wakeLockEnabled')) ?? true) await requestWakeLock()

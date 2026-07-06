@@ -7,6 +7,7 @@ export type SettingKey =
   | 'quickSetAttributes' // string[]: セット属性のクイックボタン(最大3)
   | 'quickExerciseTagIds' // string[]: 種目タグのクイックボタン(tag id、最大3)
   | 'wakeLockEnabled' // boolean: タイマー中の画面ロック防止(デフォルト true)
+  | 'timerSound' // SoundId: タイマー終了音(デフォルト 'rising')
   | 'defaultUnit' // 'kg' | 'lbs': 新規セットの重量単位(デフォルト kg)
   | 'theme' // 'light' | 'dark' | 'system'(デフォルト dark)
 

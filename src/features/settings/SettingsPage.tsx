@@ -14,6 +14,8 @@ import {
   measureGapCandidate,
   setBottomGapPx,
 } from '../../app/viewportFix'
+import { SOUND_OPTIONS, type SoundId } from '../timer/sounds'
+import { previewSound } from '../timer/timerStore'
 import { AttributePicker } from '../record/AttributePicker'
 import { TagSelectModal } from './TagSelectModal'
 
@@ -26,6 +28,7 @@ export function SettingsPage() {
   const wakeLockEnabled = useSetting<boolean>('wakeLockEnabled')
   const theme = useSetting<'light' | 'dark' | 'system'>('theme')
   const defaultUnit = useSetting<'kg' | 'lbs'>('defaultUnit')
+  const timerSound = (useSetting<SoundId>('timerSound') ?? 'rising') as SoundId
   const quickAttrs = useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
   const quickTagIds = useSetting<string[]>('quickExerciseTagIds')
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
@@ -264,6 +267,41 @@ export function SettingsPage() {
           >
             オフ
           </button>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-sm font-bold">タイマー終了音</h2>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          選ぶとその場で試聴します。音楽再生中でも気づきやすい「上昇メロディ」がおすすめです
+        </p>
+        <div className="mt-2 flex flex-col gap-1.5">
+          {SOUND_OPTIONS.map((opt) => (
+            <div key={opt.id} className="flex items-center gap-2">
+              <button
+                type="button"
+                className={`flex-1 rounded-lg py-2.5 text-left text-sm font-bold ${
+                  timerSound === opt.id
+                    ? 'bg-sky-600 px-3 text-white'
+                    : 'border border-slate-300 px-3 text-slate-600 dark:border-slate-600 dark:text-slate-300'
+                }`}
+                onClick={() => {
+                  void setSetting('timerSound', opt.id)
+                  void previewSound(opt.id)
+                }}
+              >
+                {opt.label}
+              </button>
+              <button
+                type="button"
+                aria-label={`${opt.label}を試聴`}
+                className="h-10 w-10 shrink-0 rounded-lg border border-slate-300 text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
+                onClick={() => void previewSound(opt.id)}
+              >
+                ▶
+              </button>
+            </div>
+          ))}
         </div>
       </section>
 
