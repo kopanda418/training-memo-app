@@ -23,6 +23,8 @@ export interface NewSetInput {
 
 /** セットを追加する。日レコードがなければ作り、orderInDay は日内の末尾になる */
 export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
+  // settings はトランザクション対象外のテーブルなので、開始前に読む
+  const unit = input.unit ?? ((await getSetting<WeightUnit>('defaultUnit')) || 'kg')
   return db.transaction('rw', [db.sets, db.days], async () => {
     const existing = await db.sets.where('date').equals(input.date).toArray()
     const orderInDay = existing.length ? Math.max(...existing.map((s) => s.orderInDay)) + 1 : 0
@@ -39,7 +41,7 @@ export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
       attribute: input.attribute,
       isAssisted: input.isAssisted ?? false,
       // 単位の優先順: 明示指定(前セット引き継ぎ) > 設定のデフォルト > kg
-      unit: input.unit ?? ((await getSetting<WeightUnit>('defaultUnit')) || 'kg'),
+      unit,
       memo: input.memo,
       orderInDay,
       createdAt: Date.now(),
