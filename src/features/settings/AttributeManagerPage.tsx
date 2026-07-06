@@ -10,6 +10,7 @@ import {
   listLocations,
   listSetAttributes,
   renameLocation,
+  upsertSetAttribute,
   type DeleteResult,
 } from '../../db/repository'
 
@@ -20,6 +21,7 @@ export function AttributeManagerPage() {
   const attributes = useLiveQuery(() => listSetAttributes(), [])
   const locations = useLiveQuery(() => listLocations(), [])
   const [message, setMessage] = useState<string | null>(null)
+  const [newAttr, setNewAttr] = useState('')
 
   const handleDelete = async (name: string, run: () => Promise<DeleteResult>) => {
     const result = await run()
@@ -84,7 +86,29 @@ export function AttributeManagerPage() {
         {attributes?.length === 0 && (
           <p className="py-2 text-xs text-slate-400">セット属性はありません</p>
         )}
-        <p className="text-xs text-slate-400">追加はセット行の属性ボタンからできます</p>
+        <div className="mt-1 flex gap-2">
+          <input
+            type="text"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+            placeholder="新しい属性(例: DS、テンポ)"
+            value={newAttr}
+            onChange={(e) => setNewAttr(e.target.value)}
+          />
+          <button
+            type="button"
+            className="shrink-0 rounded-lg bg-sky-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-40"
+            disabled={!newAttr.trim()}
+            onClick={() => {
+              void upsertSetAttribute(newAttr)
+              setNewAttr('')
+            }}
+          >
+            追加
+          </button>
+        </div>
+        <p className="text-xs text-slate-400">
+          ここで追加した属性はセット行やクイックボタン設定の候補に出ます
+        </p>
       </section>
 
       <section className="flex flex-col gap-1.5">

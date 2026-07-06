@@ -126,19 +126,20 @@ export function ExerciseHistoryView() {
                   <span className="font-bold">
                     {formatSetWeight(s)} × {s.reps}回
                   </span>
-                  {s.targetReps != null && (
-                    <span className="text-xs text-slate-400">(目標{s.targetReps})</span>
-                  )}
+                  {s.rpe != null && <span className="text-xs text-slate-400">RPE{s.rpe}</span>}
                   {s.isWarmup && (
                     <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-600 dark:bg-orange-900/60 dark:text-orange-300">
                       W
                     </span>
                   )}
-                  {s.attribute && (
-                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                      {s.attribute}
+                  {s.attributes?.map((a) => (
+                    <span
+                      key={a}
+                      className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+                    >
+                      {a}
                     </span>
-                  )}
+                  ))}
                   {tagFilter === 'all' && tagName(s.tagId) && (
                     <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300">
                       {tagName(s.tagId)}

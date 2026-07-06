@@ -30,7 +30,7 @@ import {
   moveBlockInDay,
   listSetsByDate,
   setDayLocation,
-  setSetAttribute,
+  toggleSetAttribute,
   transferSets,
   updateSet,
 } from './repository'
@@ -284,25 +284,26 @@ describe('moveBlockInDay(種目ブロックの並べ替え)', () => {
   })
 })
 
-describe('setSetAttribute / listSetAttributes(属性バンク)', () => {
-  it('属性を設定するとバンクに登録され、同名は再利用・解除もできる', async () => {
+describe('toggleSetAttribute / listSetAttributes(属性バンク)', () => {
+  it('属性をトグルするとバンクに登録され、同名は再利用・2回目で解除できる', async () => {
     const ex = (await db.exercises.toArray())[0]
     const s1 = await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
     const s2 = await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
 
-    await setSetAttribute(s1.id, 'ベルトなし')
-    await setSetAttribute(s2.id, ' ベルトなし ')
-    expect((await db.sets.get(s1.id))?.attribute).toBe('ベルトなし')
-    expect((await db.sets.get(s2.id))?.attribute).toBe('ベルトなし')
+    await toggleSetAttribute(s1.id, 'ベルトなし')
+    await toggleSetAttribute(s2.id, ' ベルトなし ')
+    expect((await db.sets.get(s1.id))?.attributes).toContain('ベルトなし')
+    expect((await db.sets.get(s2.id))?.attributes).toContain('ベルトなし')
     expect(await db.setAttributes.count()).toBe(1)
 
-    await setSetAttribute(s2.id, 'RPE9')
+    await toggleSetAttribute(s2.id, 'RPE9')
     const bank = await listSetAttributes()
     expect(bank.map((a) => a.name)).toEqual(['RPE9', 'ベルトなし']) // 最近使った順
     expect(bank).toHaveLength(2)
 
-    await setSetAttribute(s1.id, undefined)
-    expect((await db.sets.get(s1.id))?.attribute).toBeUndefined()
+    // 同じ属性をもう一度トグル → 解除
+    await toggleSetAttribute(s1.id, 'ベルトなし')
+    expect((await db.sets.get(s1.id))?.attributes ?? []).not.toContain('ベルトなし')
     expect(await db.setAttributes.count()).toBe(2) // バンクは残る
   })
 })
@@ -444,7 +445,7 @@ describe('マスタ管理(部位・種目・タグ・セット属性)', () => {
       weight: 100,
       reps: 5,
     })
-    await setSetAttribute(set.id, 'RPE9')
+    await toggleSetAttribute(set.id, 'RPE9')
     const attr = (await db.setAttributes.toArray())[0]
 
     expect((await deleteExercise(ex.id)).deleted).toBe(false)

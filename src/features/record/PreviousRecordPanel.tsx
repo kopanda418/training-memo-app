@@ -52,16 +52,20 @@ export function PreviousRecordPanel({ date, exerciseId, tagId }: PreviousRecordP
             <span className="tabular">
               {formatSetWeight(s)} × {s.reps}回
             </span>
+            {s.rpe != null && <span className="text-[10px] text-slate-400">RPE{s.rpe}</span>}
             {s.isWarmup && (
               <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-600 dark:bg-orange-900/60 dark:text-orange-300">
                 W
               </span>
             )}
-            {s.attribute && (
-              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
-                {s.attribute}
+            {s.attributes?.map((a) => (
+              <span
+                key={a}
+                className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/60 dark:text-amber-300"
+              >
+                {a}
               </span>
-            )}
+            ))}
           </li>
         ))}
       </ul>

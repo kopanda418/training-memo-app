@@ -388,9 +388,13 @@ export function SettingsPage() {
       {attrSlotOpen !== null && (
         <AttributePicker
           open
-          current={quickAttrs[attrSlotOpen]?.trim() || undefined}
+          current={quickAttrs[attrSlotOpen]?.trim() ? [quickAttrs[attrSlotOpen].trim()] : []}
           onClose={() => setAttrSlotOpen(null)}
-          onSelect={(name) => setQuickAttr(attrSlotOpen, name ?? '')}
+          onToggle={(name) => {
+            const cur = quickAttrs[attrSlotOpen]?.trim()
+            setQuickAttr(attrSlotOpen, cur === name ? '' : name)
+            setAttrSlotOpen(null)
+          }}
         />
       )}
       {tagSlotOpen !== null && (

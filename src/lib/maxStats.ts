@@ -19,6 +19,8 @@ export interface MaxRow {
   load: BestEntry
   reps: BestEntry
   oneRm: BestEntry
+  /** 最終実施日(ウォームアップ・実績空欄除く) */
+  lastDate: string
 }
 
 /**
@@ -40,7 +42,7 @@ export function computeMaxRows(sets: WorkoutSet[], bodyWeight?: number): MaxRow[
     let row = map.get(key)
     if (!row) {
       const zero: BestEntry = { value: 0, date: s.date, load: 0, reps: 0 }
-      row = { exerciseId: s.exerciseId, tagId: s.tagId, load: zero, reps: zero, oneRm: zero }
+      row = { exerciseId: s.exerciseId, tagId: s.tagId, load: zero, reps: zero, oneRm: zero, lastDate: s.date }
       map.set(key, row)
     }
     const entry: BestEntry = { value: 0, date: s.date, load, reps: s.reps }
@@ -48,6 +50,7 @@ export function computeMaxRows(sets: WorkoutSet[], bodyWeight?: number): MaxRow[
     if (s.reps > row.reps.value) row.reps = { ...entry, value: s.reps }
     const rm = estimateOneRepMax(load, s.reps)
     if (rm > row.oneRm.value) row.oneRm = { ...entry, value: rm }
+    if (s.date > row.lastDate) row.lastDate = s.date
   }
-  return [...map.values()].sort((a, b) => b.oneRm.value - a.oneRm.value)
+  return [...map.values()]
 }

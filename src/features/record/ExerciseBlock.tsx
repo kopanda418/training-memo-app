@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/core'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { Modal } from '../../components/Modal'
 import { TransferModal } from '../../components/TransferModal'
 import {
   addSet,
@@ -51,6 +52,7 @@ export function ExerciseBlock({
   const [message, setMessage] = useState<string | null>(null)
   const [transferOpen, setTransferOpen] = useState(false)
   const [tagModalOpen, setTagModalOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   // セット番号の長押し(250ms)でドラッグ開始(タップやスクロールと衝突させない)
   const sensors = useSensors(
@@ -81,7 +83,8 @@ export function ExerciseBlock({
       isBodyweight: last?.isBodyweight,
       isWarmup: last?.isWarmup,
       reps: last?.reps ?? 10,
-      targetReps: last?.targetReps,
+      rpe: last?.rpe,
+      attributes: last?.attributes,
       unit: last?.unit,
     })
   }
@@ -93,8 +96,11 @@ export function ExerciseBlock({
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <header className="mb-1 flex items-center gap-2">
-        <h2 className="min-w-0 truncate text-sm font-bold">{exerciseName}</h2>
+      <header className="mb-1 flex items-start gap-2">
+        {/* 種目名は 2 行まで折り返して全文表示(途切れ対策) */}
+        <h2 className="line-clamp-2 min-w-0 flex-1 text-sm font-bold leading-tight">
+          {exerciseName}
+        </h2>
         {/* タグは後から変更できる(タップでタグ選択。日内のこのブロック全セットに適用) */}
         <button
           type="button"
@@ -107,57 +113,32 @@ export function ExerciseBlock({
         >
           {tagName ?? '＋タグ'}
         </button>
-        <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          {sets.length > 0 && (
-            <>
-              <button
-                type="button"
-                aria-label="上へ移動"
-                className="rounded-lg border border-slate-300 px-1.5 py-1 text-xs text-slate-600 active:bg-slate-100 disabled:opacity-25 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
-                disabled={isFirst}
-                onClick={() => void moveBlockInDay(date, exerciseId, tagId, 'up')}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                aria-label="下へ移動"
-                className="rounded-lg border border-slate-300 px-1.5 py-1 text-xs text-slate-600 active:bg-slate-100 disabled:opacity-25 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
-                disabled={isLast}
-                onClick={() => void moveBlockInDay(date, exerciseId, tagId, 'down')}
-              >
-                ↓
-              </button>
-            </>
-          )}
+        <button
+          type="button"
+          className="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
+          onClick={() => void handleCopyPrevious()}
+        >
+          前回コピー
+        </button>
+        {sets.length > 0 ? (
           <button
             type="button"
-            className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
-            onClick={() => void handleCopyPrevious()}
+            aria-label="この種目のメニュー(並べ替え・別の日へ)"
+            className="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
+            onClick={() => setMenuOpen(true)}
           >
-            前回コピー
+            ⋯
           </button>
-          {sets.length > 0 && (
-            <button
-              type="button"
-              aria-label="この種目の記録を別の日へコピー/移動"
-              className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
-              onClick={() => setTransferOpen(true)}
-            >
-              ⋯
-            </button>
-          )}
-          {sets.length === 0 && (
-            <button
-              type="button"
-              aria-label="種目を取り消す"
-              className="px-1 text-slate-300 active:text-red-500 dark:text-slate-600"
-              onClick={onRemoveEmpty}
-            >
-              ✕
-            </button>
-          )}
-        </div>
+        ) : (
+          <button
+            type="button"
+            aria-label="種目を取り消す"
+            className="shrink-0 px-1 text-slate-300 active:text-red-500 dark:text-slate-600"
+            onClick={onRemoveEmpty}
+          >
+            ✕
+          </button>
+        )}
       </header>
       {message && <p className="py-1 text-xs text-amber-600 dark:text-amber-400">{message}</p>}
       <PreviousRecordPanel date={date} exerciseId={exerciseId} tagId={tagId} />
@@ -182,6 +163,44 @@ export function ExerciseBlock({
       >
         ＋ セット追加
       </button>
+      {menuOpen && (
+        <Modal open onClose={() => setMenuOpen(false)} title={exerciseName}>
+          <div className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-30 dark:border-slate-700"
+              disabled={isFirst}
+              onClick={() => {
+                void moveBlockInDay(date, exerciseId, tagId, 'up')
+                setMenuOpen(false)
+              }}
+            >
+              ↑ 上へ移動
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-30 dark:border-slate-700"
+              disabled={isLast}
+              onClick={() => {
+                void moveBlockInDay(date, exerciseId, tagId, 'down')
+                setMenuOpen(false)
+              }}
+            >
+              ↓ 下へ移動
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm dark:border-slate-700"
+              onClick={() => {
+                setMenuOpen(false)
+                setTransferOpen(true)
+              }}
+            >
+              📆 別の日へコピー / 移動
+            </button>
+          </div>
+        </Modal>
+      )}
       {tagModalOpen && (
         <TagSelectModal
           open

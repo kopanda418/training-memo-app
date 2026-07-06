@@ -11,10 +11,10 @@ import {
 } from 'chart.js'
 import { Line } from 'react-chartjs-2'
 import { CommitInput } from '../../components/CommitInput'
+import { db } from '../../db/db'
 import { useMasters } from '../../db/hooks'
-import { listHistory } from '../../db/repository'
 import { useSetting } from '../../db/settings'
-import { NO_TAG } from '../../db/types'
+import { NO_TAG, type WorkoutSet } from '../../db/types'
 import { addDays, todayString } from '../../lib/date'
 import { estimateOneRepMax } from '../../lib/oneRepMax'
 import { effectiveLoad } from '../../lib/setFormat'
@@ -38,33 +38,40 @@ const PERIODS = [
   { key: 0, label: '全期間' },
 ] as const
 
-/** 種目×タグ別の折れ線グラフ(遅延ロードされるので default export) */
+/** タグフィルタ: 'all' はすべて、NO_TAG はタグなしのみ、それ以外はタグ ID */
+type TagFilter = 'all' | string
+
+/** 種目選択 → 全タグ合算で即表示 → タグフィルタチップで絞り込み */
 export default function GraphView() {
-  const [target, setTarget] = useState<{ exerciseId: string; tagId: string } | null>(null)
+  const [exerciseId, setExerciseId] = useState<string | null>(null)
+  const [tagFilter, setTagFilter] = useState<TagFilter>('all')
   const [metric, setMetric] = useState<MetricKey>('oneRm')
   const [periodDays, setPeriodDays] = useState<number>(0)
-  // 縦軸の固定値(空欄 = 自動調整)
   const [yMin, setYMin] = useState<number | undefined>(undefined)
   const [yMax, setYMax] = useState<number | undefined>(undefined)
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  const { exerciseName, tagName } = useMasters()
+  const { exerciseName, tags } = useMasters()
   const bodyWeight = useSetting<number>('bodyWeight')
-  const history = useLiveQuery(
-    () => (target ? listHistory(target.exerciseId, target.tagId) : Promise.resolve([])),
-    [target?.exerciseId, target?.tagId],
+
+  const sets = useLiveQuery<WorkoutSet[]>(
+    () =>
+      exerciseId ? db.sets.where('exerciseId').equals(exerciseId).toArray() : Promise.resolve([]),
+    [exerciseId],
   )
 
-  // 日付ごとに指標を計算(ウォームアップ・実績空欄・換算不能な自重は除外)
+  const usedTagIds = useMemo(() => new Set((sets ?? []).map((s) => s.tagId)), [sets])
+
   const points = useMemo(() => {
     const cutoff = periodDays > 0 ? addDays(todayString(), -periodDays) : ''
     const byDate = new Map<
       string,
       { maxWeight: number; oneRm: number; volume: number; sets: number }
     >()
-    for (const s of history ?? []) {
+    for (const s of sets ?? []) {
       if (s.isWarmup || s.reps <= 0) continue
       if (cutoff && s.date < cutoff) continue
+      if (tagFilter !== 'all' && s.tagId !== tagFilter) continue
       const load = effectiveLoad(s, bodyWeight)
       if (load === undefined) continue
       let p = byDate.get(s.date)
@@ -78,7 +85,7 @@ export default function GraphView() {
       p.sets++
     }
     return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [history, bodyWeight, periodDays])
+  }, [sets, bodyWeight, periodDays, tagFilter])
 
   const metricLabel = METRICS.find((m) => m.key === metric)!.label
   const chartData = {
@@ -112,13 +119,43 @@ export default function GraphView() {
         className="w-full rounded-xl border border-slate-300 py-2.5 text-sm font-bold active:bg-slate-100 dark:border-slate-600 dark:active:bg-slate-700"
         onClick={() => setPickerOpen(true)}
       >
-        {target
-          ? `${exerciseName(target.exerciseId)}${tagName(target.tagId) ? ` / ${tagName(target.tagId)}` : ''}`
-          : '種目×タグを選択'}
+        {exerciseId ? exerciseName(exerciseId) : '種目を選択'}
       </button>
 
-      {target && (
+      {exerciseId && (
         <>
+          {/* タグフィルタチップ */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            <button
+              type="button"
+              className={chipClass(tagFilter === 'all')}
+              onClick={() => setTagFilter('all')}
+            >
+              すべて
+            </button>
+            {usedTagIds.has(NO_TAG) && (
+              <button
+                type="button"
+                className={chipClass(tagFilter === NO_TAG)}
+                onClick={() => setTagFilter(NO_TAG)}
+              >
+                タグなし
+              </button>
+            )}
+            {tags
+              ?.filter((t) => usedTagIds.has(t.id))
+              .map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className={chipClass(tagFilter === tag.id)}
+                  onClick={() => setTagFilter(tag.id)}
+                >
+                  {tag.name}
+                </button>
+              ))}
+          </div>
+
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {METRICS.map((m) => (
               <button
@@ -146,7 +183,7 @@ export default function GraphView() {
         </>
       )}
 
-      {target && points.length > 0 && (
+      {exerciseId && points.length > 0 && (
         <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <Line
             data={chartData}
@@ -194,15 +231,19 @@ export default function GraphView() {
           </p>
         </section>
       )}
-      {target && history !== undefined && points.length === 0 && (
-        <p className="py-8 text-center text-sm text-slate-400">この種目×タグの記録がありません</p>
+      {exerciseId && sets !== undefined && points.length === 0 && (
+        <p className="py-8 text-center text-sm text-slate-400">この条件の記録がありません</p>
       )}
 
       {pickerOpen && (
         <ExercisePicker
           open
+          withTagStep={false}
           onClose={() => setPickerOpen(false)}
-          onDone={(exerciseId, tagId) => setTarget({ exerciseId, tagId: tagId || NO_TAG })}
+          onDone={(id) => {
+            setExerciseId(id)
+            setTagFilter('all')
+          }}
         />
       )}
     </div>

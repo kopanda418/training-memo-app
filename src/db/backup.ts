@@ -63,7 +63,14 @@ export async function importData(backup: unknown): Promise<void> {
     await db.exercises.bulkAdd(parsed.data.exercises)
     await db.tags.bulkAdd(parsed.data.tags)
     await db.days.bulkAdd(parsed.data.days)
-    await db.sets.bulkAdd(parsed.data.sets)
+    // 旧形式(単数 attribute)のバックアップを複数 attributes[] へ正規化してから取り込む
+    const sets = parsed.data.sets.map((s) => {
+      if (s.attribute && !s.attributes) {
+        return { ...s, attributes: [s.attribute], attribute: undefined }
+      }
+      return s
+    })
+    await db.sets.bulkAdd(sets)
     await db.locations.bulkAdd(parsed.data.locations)
     await db.settings.bulkAdd(parsed.data.settings)
     await db.setAttributes.bulkAdd(parsed.data.setAttributes ?? [])

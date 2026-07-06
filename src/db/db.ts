@@ -65,6 +65,16 @@ export class TrainingMemoDB extends Dexie {
     this.version(4).stores({
       templates: 'id, name',
     })
+    // v5: セット属性を単数 attribute → 複数 attributes[] へ移行
+    this.version(5).upgrade(async (tx) => {
+      const sets = tx.table<WorkoutSet, string>('sets')
+      const withAttr = await sets
+        .filter((s) => typeof s.attribute === 'string' && s.attribute.length > 0)
+        .toArray()
+      await Promise.all(
+        withAttr.map((s) => sets.update(s.id, { attributes: [s.attribute!], attribute: undefined })),
+      )
+    })
     // 初回作成時のみデフォルトマスタを投入
     this.on('populate', () => {
       void this.exercises.bulkAdd(buildDefaultExercises())

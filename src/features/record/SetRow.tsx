@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { CommitInput } from '../../components/CommitInput'
 import { showToast } from '../../components/Toast'
-import { deleteSet, detectMaxUpdate, setSetAttribute, updateSet } from '../../db/repository'
+import { deleteSet, detectMaxUpdate, toggleSetAttribute, updateSet } from '../../db/repository'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, useSetting } from '../../db/settings'
 import type { WorkoutSet } from '../../db/types'
 import { estimateOneRepMax } from '../../lib/oneRepMax'
@@ -62,6 +62,7 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
     id: set.id,
   })
 
+  const attrs = set.attributes ?? []
   // 自重セットは「体重 + 加重」で 1RM 換算(体重未登録なら換算しない)
   const load = effectiveLoad(set, bodyWeight)
   const oneRm = load !== undefined ? estimateOneRepMax(load, set.reps) : 0
@@ -138,21 +139,19 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
           自重
         </button>
         <CopyBtn
-          label="前セットのレップ数(目標・実績)をコピー"
+          label="前セットの RPE・レップ数をコピー"
           disabled={!prevSet}
-          onClick={() =>
-            prevSet &&
-            void updateSet(set.id, { targetReps: prevSet.targetReps, reps: prevSet.reps })
-          }
+          onClick={() => prevSet && void updateSet(set.id, { rpe: prevSet.rpe, reps: prevSet.reps })}
         />
+        <span className="shrink-0 text-[10px] text-slate-400">RPE</span>
         <CommitInput
-          inputMode="numeric"
+          inputMode="decimal"
           className={`w-9 text-sm text-slate-500 dark:text-slate-400 ${numBoxClass}`}
-          value={set.targetReps != null ? String(set.targetReps) : ''}
-          placeholder="目標"
+          value={set.rpe != null ? String(set.rpe) : ''}
+          placeholder="-"
           onCommit={(t) => {
             const n = parseNum(t)
-            void updateSet(set.id, { targetReps: n === undefined ? undefined : Math.round(n) })
+            void updateSet(set.id, { rpe: n })
           }}
         />
         <span className="shrink-0 text-xs text-slate-400">/</span>
@@ -208,36 +207,40 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
         >
           W
         </button>
-        {set.attribute ? (
-          <button
-            type="button"
-            className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300"
-            onClick={() => setAttrPickerOpen(true)}
-          >
-            {set.attribute}
-          </button>
-        ) : (
-          <div className="flex shrink-0 items-center gap-1">
-            {quickAttrs.map((q) => (
+        <div className="flex flex-wrap items-center gap-1">
+          {/* 付いている属性: タップで外す */}
+          {attrs.map((a) => (
+            <button
+              key={a}
+              type="button"
+              className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700 active:bg-sky-200 dark:bg-sky-900 dark:text-sky-300"
+              onClick={() => void toggleSetAttribute(set.id, a)}
+            >
+              {a} ✕
+            </button>
+          ))}
+          {/* 未付与のクイック属性: タップで付ける */}
+          {quickAttrs
+            .filter((q) => !attrs.includes(q))
+            .map((q) => (
               <button
                 key={q}
                 type="button"
                 className="rounded-full border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700"
-                onClick={() => void setSetAttribute(set.id, q)}
+                onClick={() => void toggleSetAttribute(set.id, q)}
               >
                 {q}
               </button>
             ))}
-            <button
-              type="button"
-              aria-label="属性を選択"
-              className="rounded-full border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700"
-              onClick={() => setAttrPickerOpen(true)}
-            >
-              ＋
-            </button>
-          </div>
-        )}
+          <button
+            type="button"
+            aria-label="属性を選択"
+            className="rounded-full border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700"
+            onClick={() => setAttrPickerOpen(true)}
+          >
+            ＋属性
+          </button>
+        </div>
         {oneRm > 0 && (
           <span className="ml-auto shrink-0 text-[10px] text-slate-400">
             1RM {Math.round(oneRm * 10) / 10}kg
@@ -247,9 +250,9 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
       {attrPickerOpen && (
         <AttributePicker
           open
-          current={set.attribute}
+          current={attrs}
           onClose={() => setAttrPickerOpen(false)}
-          onSelect={(name) => void setSetAttribute(set.id, name)}
+          onToggle={(name) => void toggleSetAttribute(set.id, name)}
         />
       )}
     </div>

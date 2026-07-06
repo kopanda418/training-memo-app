@@ -11,8 +11,8 @@ export type SettingKey =
   | 'defaultUnit' // 'kg' | 'lbs': 新規セットの重量単位(デフォルト kg)
   | 'theme' // 'light' | 'dark' | 'system'(デフォルト dark)
 
-/** セット属性クイックボタンの初期値(設定で変更可能) */
-export const DEFAULT_QUICK_SET_ATTRIBUTES = ['補助', 'RPE8', 'RPE9']
+/** セット属性クイックボタンの初期値(設定で変更可能)。RPE は専用欄へ移ったため動作系を既定に */
+export const DEFAULT_QUICK_SET_ATTRIBUTES = ['左', '右', 'フル']
 
 export async function getSetting<T>(key: SettingKey): Promise<T | undefined> {
   const row = await db.settings.get(key)

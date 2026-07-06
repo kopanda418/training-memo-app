@@ -14,8 +14,8 @@ export interface NewSetInput {
   isBodyweight?: boolean
   isWarmup?: boolean
   reps: number
-  targetReps?: number
-  attribute?: string
+  rpe?: number
+  attributes?: string[]
   isAssisted?: boolean
   unit?: WeightUnit
   memo?: string
@@ -37,8 +37,8 @@ export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
       isBodyweight: input.isBodyweight,
       isWarmup: input.isWarmup,
       reps: input.reps,
-      targetReps: input.targetReps,
-      attribute: input.attribute,
+      rpe: input.rpe,
+      attributes: input.attributes,
       isAssisted: input.isAssisted ?? false,
       // 単位の優先順: 明示指定(前セット引き継ぎ) > 設定のデフォルト > kg
       unit,
@@ -61,8 +61,8 @@ export async function updateSet(
       | 'isBodyweight'
       | 'isWarmup'
       | 'reps'
-      | 'targetReps'
-      | 'attribute'
+      | 'rpe'
+      | 'attributes'
       | 'isAssisted'
       | 'unit'
       | 'memo'
@@ -319,18 +319,25 @@ export async function upsertSetAttribute(name: string): Promise<void> {
 }
 
 /**
- * セットに属性を設定する(undefined / 空文字で解除)。
- * 新しい属性名は自動でバンクに登録、既存名は lastUsedAt を更新する
+ * セットの属性を 1 つトグルする(付いていなければ追加、付いていれば外す)。
+ * 追加時は自動でバンクに登録する。属性は複数持てる
  */
-export async function setSetAttribute(setId: string, name: string | undefined): Promise<void> {
-  const trimmed = name?.trim()
+export async function toggleSetAttribute(setId: string, name: string): Promise<void> {
+  const trimmed = name.trim()
+  if (!trimmed) return
   await db.transaction('rw', [db.sets, db.setAttributes], async () => {
-    if (!trimmed) {
-      await db.sets.update(setId, { attribute: undefined })
-      return
+    const set = await db.sets.get(setId)
+    if (!set) return
+    const current = set.attributes ?? []
+    let next: string[] | undefined
+    if (current.includes(trimmed)) {
+      next = current.filter((a) => a !== trimmed)
+      if (next.length === 0) next = undefined
+    } else {
+      next = [...current, trimmed]
+      await upsertSetAttribute(trimmed)
     }
-    await upsertSetAttribute(trimmed)
-    await db.sets.update(setId, { attribute: trimmed })
+    await db.sets.update(setId, { attributes: next })
   })
 }
 
@@ -441,7 +448,8 @@ export async function applyTemplate(date: string, templateId: string): Promise<n
         isBodyweight: last?.isBodyweight,
         isWarmup: last?.isWarmup,
         reps: 0,
-        targetReps: last?.targetReps,
+        rpe: last?.rpe,
+        attributes: last?.attributes,
         unit: last?.unit,
       })
     }
@@ -571,7 +579,7 @@ export async function deleteSetAttribute(id: string): Promise<DeleteResult> {
   return db.transaction('rw', [db.setAttributes, db.sets], async () => {
     const attr = await db.setAttributes.get(id)
     if (!attr) return { deleted: true }
-    const usedCount = await db.sets.filter((s) => s.attribute === attr.name).count()
+    const usedCount = await db.sets.filter((s) => !!s.attributes?.includes(attr.name)).count()
     if (usedCount > 0) return { deleted: false, usedCount }
     await db.setAttributes.delete(id)
     return { deleted: true }
