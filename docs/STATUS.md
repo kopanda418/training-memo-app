@@ -4,14 +4,14 @@
 
 ## 現在地
 
-- **フェーズ**: 🎉 Ver 1.0.0 リリース済み(2026-07-06)。M0〜M6 全マイルストーン完了、実機フィードバック 6 巡反映済み
+- **フェーズ**: 🎉 Ver 1.0.1 リリース済み(2026-07-07)。v1.0.0 リリース後のユーザーフィードバック第7弾を全実装済み
 - **作業中マイルストーン**: なし。以降はバックログ(roadmap.md)とユーザーフィードバックに基づく継続開発
 
 ## 次にやること
 
-1. Ver 1.0.0 は git タグ `v1.0.0` で管理。今後の修正では毎回 `src/app/version.ts` の APP_VERSION を上げる(v1.0.1 〜)
-2. バックログは roadmap.md の「Ver 1.0 以降のバックログ」を参照(経過日数表示、有酸素記録、クラウド同期の再検討 など)
-3. 継続開発の入口は変わらず: このファイル → roadmap.md → 該当機能。デプロイは main push で自動、配信確認は `gh api .../pages/builds/latest` + 配信 HTML のバンドル名一致
+1. 移行データ(`input/training-memo-backup-migrated.json`)を設定画面のインポートで取り込む — ユーザー側の手作業
+2. 次のフィードバックまたはバックログ着手(roadmap.md の「Ver 1.0 以降のバックログ」参照)
+3. デプロイは main push で自動。配信確認は `gh run list` + 配信 HTML のバンドル名一致
 
 ## 申し送り・注意点
 
@@ -21,16 +21,17 @@
 - GitHub リポジトリは https://github.com/kopanda418/training-memo-app (public。Pages の無料利用に public が必要)
 - eslint-plugin-react-hooks v7 は flat config を `configs.flat.recommended` で参照する(`recommended-latest` はレガシー形式でエラーになる)
 - PowerShell 5.1 に日本語入りスクリプトを渡すと文字コード誤読で壊れる。一時 .ps1 は ASCII のみで書く
-- Pages の有効化は Actions の `configure-pages` (enablement: true) では権限不足で失敗する。`gh api -X POST repos/kopanda418/training-memo-app/pages -f build_type=workflow` で有効化済み(一度きりの作業、再実行不要)
-- デプロイは main への push で自動(Actions が gh-pages ブランチへ push → Pages が配信。ADR-008)。状態確認は `gh run list` / `gh run watch <id>`、配信確認は `gh api repos/kopanda418/training-memo-app/pages/builds/latest`
+- Pages の有効化は `gh api -X POST repos/kopanda418/training-memo-app/pages -f build_type=workflow` で有効化済み(一度きりの作業)
+- デプロイは main への push で自動(Actions が gh-pages ブランチへ push → Pages が配信)。状態確認は `gh run list` / `gh run watch <id>`
 - 旧 artifact 方式 (`actions/deploy-pages`) はこのリポジトリで原因不明の連続失敗。戻さないこと
 - PowerShell 経由の `git commit -m` に二重引用符入りメッセージを渡すと引数が壊れる。メッセージに `"` を含めない
 - データ層の使い方: `src/db/repository.ts`(addSet は日レコード作成と orderInDay 採番を内包)、バックアップは `src/db/backup.ts`。タグなしは `NO_TAG`('')に正規化される(ADR-005)
 - Dexie の `toArray()` は主キー(UUID)順で返る。マスタの表示は `orderBy('sortOrder')` を使うこと
-- 実機フィードバックの要件・決定事項は docs/feedback-2026-07-03.md に集約(自重=設定の体重、セット属性は1つ、並べ替えは↑↓、ダーク基調)
-- 現在ダークがデフォルト(index.html の `<html class="dark">`)。M6 のテーマ切替はこのクラスを設定値で付け外しする
-- `sets.isAssisted` は deprecated(Dexie v2 で属性「補助」へ移行済み)。新規コードでは `attribute` を使う
 - 2026-07-03 に全履歴の author/committer を noreply アドレスへ書き換え済み(個人メール露出対策)。このリポジトリの git config user.email はリポジトリローカルで noreply に設定してある。変更しないこと
+- **v1.0.1 で attributes[] に移行済み**: `sets.attribute`(単数 string)は deprecated。現行コードでは `sets.attributes`(string[])を使う。Dexie v5 マイグレーション済み。バックアップ import 側も正規化済み(`src/db/backup.ts`)
+- **v1.0.1 で RPE フィールド追加**: `sets.rpe?: number`(小数可)。目標レップ(`targetReps`)は UI から撤去済み(既存データ互換のため型に残る)
+- **移行データファイル**: `input/` ディレクトリは .gitignore 済みで GitHub 非公開。`input/migration-data.json`(旧アプリ export)・`input/convert.cjs`(変換スクリプト)・`input/training-memo-backup-migrated.json`(出力)はローカルのみ
+- 設定画面の「属性クイックボタン」は 1 スロット 1 属性のまま(`AttributePicker` を toggle+close モードで単一選択として使用)
 
 ## セッション履歴
 
@@ -51,3 +52,4 @@
 | 2026-07-06 | v0.0.1〜0.0.5: バージョン表示導入、タブバー問題の真因=black-translucentのWebView短縮バグ→ステータスバー不透過化で解決+7px調整、バックアップUI前倒し、補正スライダー、Pages障害(スロットリング)をartifact方式切替+クールダウンで復旧 |
 | 2026-07-06 | v0.0.6 M5完了: タブバー中央の⏱からタイマー(プリセット/任意秒/+30秒/終了音3連ビープ)、Wake Lock(設定でオンオフ・visibilitychange再取得)。次はM6(テーマ・単位・仕上げ)                                                                |
 | 2026-07-06 | v0.0.7 M6(テーマ・単位・場所管理・永続化)、v0.0.8 タイマー終了音選択(上昇メロディ・試聴)。🎉 Ver 1.0.0 リリース(全マイルストーン完了)                                                                                               |
+| 2026-07-07 | v1.0.1: セット属性複数化(Dexie v5)・RPE欄・セット追加プリフィル(属性/RPE)・グラフ改善(タグ工程廃止→全タグ合算+チップ)・MAX改善(最終日順+並替+検索)・ブロックヘッダ改善・属性管理追加欄。移行データ変換スクリプト更新(メモ→属性/RPE)。デプロイ完了 |
