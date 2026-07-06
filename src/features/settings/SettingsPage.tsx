@@ -23,6 +23,7 @@ const slotBtnClass =
 export function SettingsPage() {
   const navigate = useNavigate()
   const bodyWeight = useSetting<number>('bodyWeight')
+  const wakeLockEnabled = useSetting<boolean>('wakeLockEnabled')
   const quickAttrs = useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
   const quickTagIds = useSetting<string[]>('quickExerciseTagIds')
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
@@ -181,6 +182,37 @@ export function SettingsPage() {
               )}
             </button>
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-sm font-bold">タイマー中の画面ロック防止</h2>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          タイマー動作中に画面を消灯させません(iOS はロック中に音を鳴らせないため、オンを推奨)
+        </p>
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            className={`flex-1 rounded-lg py-2.5 text-sm font-bold ${
+              (wakeLockEnabled ?? true)
+                ? 'bg-sky-600 text-white'
+                : 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
+            }`}
+            onClick={() => void setSetting('wakeLockEnabled', true)}
+          >
+            オン(推奨)
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded-lg py-2.5 text-sm font-bold ${
+              (wakeLockEnabled ?? true)
+                ? 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
+                : 'bg-sky-600 text-white'
+            }`}
+            onClick={() => void setSetting('wakeLockEnabled', false)}
+          >
+            オフ
+          </button>
         </div>
       </section>
 

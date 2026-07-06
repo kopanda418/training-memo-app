@@ -3,9 +3,10 @@ import { db } from './db'
 
 /** settings テーブルのキー一覧(追加したらここに足す) */
 export type SettingKey =
-  | 'bodyWeight' // number: 自重ボタンで入る体重(kg)
+  | 'bodyWeight' // number: 自重セットの 1RM 換算に使う体重(kg)
   | 'quickSetAttributes' // string[]: セット属性のクイックボタン(最大3)
   | 'quickExerciseTagIds' // string[]: 種目タグのクイックボタン(tag id、最大3)
+  | 'wakeLockEnabled' // boolean: タイマー中の画面ロック防止(デフォルト true)
   | 'theme' // 'light' | 'dark' | 'system'
 
 /** セット属性クイックボタンの初期値(設定で変更可能) */
