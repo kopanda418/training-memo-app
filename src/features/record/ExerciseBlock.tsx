@@ -13,6 +13,7 @@ import { Modal } from '../../components/Modal'
 import { TransferModal } from '../../components/TransferModal'
 import {
   addSet,
+  changeBlockExercise,
   changeBlockTag,
   copyPreviousSession,
   getLastSet,
@@ -21,6 +22,7 @@ import {
 } from '../../db/repository'
 import { NO_TAG, type WorkoutSet } from '../../db/types'
 import { TagSelectModal } from '../settings/TagSelectModal'
+import { ExercisePicker } from './ExercisePicker'
 import { PreviousRecordPanel } from './PreviousRecordPanel'
 import { SetRow } from './SetRow'
 
@@ -52,6 +54,7 @@ export function ExerciseBlock({
   const [message, setMessage] = useState<string | null>(null)
   const [transferOpen, setTransferOpen] = useState(false)
   const [tagModalOpen, setTagModalOpen] = useState(false)
+  const [exercisePickerOpen, setExercisePickerOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
 
   // セット番号の長押し(250ms)でドラッグ開始(タップやスクロールと衝突させない)
@@ -97,10 +100,15 @@ export function ExerciseBlock({
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <header className="mb-1 flex items-start gap-2">
-        {/* 種目名は 2 行まで折り返して全文表示(途切れ対策) */}
-        <h2 className="line-clamp-2 min-w-0 flex-1 text-sm font-bold leading-tight">
+        {/* 種目名タップで種目変更(このブロックの全セットを別種目へ)。2 行まで折り返して全文表示 */}
+        <button
+          type="button"
+          aria-label="種目を変更"
+          className="line-clamp-2 min-w-0 flex-1 text-left text-sm font-bold leading-tight active:text-sky-600"
+          onClick={() => setExercisePickerOpen(true)}
+        >
           {exerciseName}
-        </h2>
+        </button>
         {/* タグは後から変更できる(タップでタグ選択。日内のこのブロック全セットに適用) */}
         <button
           type="button"
@@ -208,6 +216,16 @@ export function ExerciseBlock({
           clearLabel="タグなしにする"
           onClose={() => setTagModalOpen(false)}
           onSelect={(newTagId) => void changeBlockTag(date, exerciseId, tagId, newTagId ?? NO_TAG)}
+        />
+      )}
+      {exercisePickerOpen && (
+        <ExercisePicker
+          open
+          withTagStep={false}
+          onClose={() => setExercisePickerOpen(false)}
+          onDone={(newExerciseId) =>
+            void changeBlockExercise(date, exerciseId, tagId, newExerciseId)
+          }
         />
       )}
       {transferOpen && (

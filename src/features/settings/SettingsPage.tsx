@@ -2,9 +2,11 @@ import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router'
 import { CommitInput } from '../../components/CommitInput'
+import { Modal } from '../../components/Modal'
 import { showToast } from '../../components/Toast'
 import { exportData, importData } from '../../db/backup'
 import { db } from '../../db/db'
+import { listLocations } from '../../db/repository'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, setSetting, useSetting } from '../../db/settings'
 import { todayString } from '../../lib/date'
 import { APP_VERSION } from '../../app/version'
@@ -32,9 +34,12 @@ export function SettingsPage() {
   const quickAttrs = useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
   const quickTagIds = useSetting<string[]>('quickExerciseTagIds')
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
+  const defaultLocationId = useSetting<string>('defaultLocationId')
+  const locations = useLiveQuery(() => listLocations(), [])
 
   const [attrSlotOpen, setAttrSlotOpen] = useState<number | null>(null)
   const [tagSlotOpen, setTagSlotOpen] = useState<number | null>(null)
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
   const [gapPx, setGapPx] = useState<number>(getBottomGapPx())
 
@@ -193,6 +198,24 @@ export function SettingsPage() {
             タグ・属性・場所の管理 ›
           </button>
         </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-sm font-bold">ホームジム(既定の場所)</h2>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          記録を初めて入力した日に、場所が未設定なら自動でこの場所を付けます。日ごとに変更も可能です
+        </p>
+        <button
+          type="button"
+          className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-left text-sm active:bg-slate-100 dark:border-slate-600 dark:active:bg-slate-700"
+          onClick={() => setLocationPickerOpen(true)}
+        >
+          {defaultLocationId ? (
+            (locations?.find((l) => l.id === defaultLocationId)?.name ?? '(削除された場所)')
+          ) : (
+            <span className="text-slate-400">設定しない(自動付与オフ)</span>
+          )}
+        </button>
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -404,6 +427,44 @@ export function SettingsPage() {
           onClose={() => setTagSlotOpen(null)}
           onSelect={(tagId) => setQuickTag(tagSlotOpen, tagId ?? '')}
         />
+      )}
+      {locationPickerOpen && (
+        <Modal open onClose={() => setLocationPickerOpen(false)} title="ホームジム(既定の場所)">
+          <div className="flex flex-col gap-1.5">
+            {locations?.map((loc) => (
+              <button
+                key={loc.id}
+                type="button"
+                className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm ${
+                  loc.id === defaultLocationId
+                    ? 'border-sky-500 bg-sky-50 font-bold text-sky-700 dark:bg-sky-950 dark:text-sky-300'
+                    : 'border-slate-200 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700'
+                }`}
+                onClick={() => {
+                  void setSetting('defaultLocationId', loc.id)
+                  setLocationPickerOpen(false)
+                }}
+              >
+                {loc.name}
+              </button>
+            ))}
+            {locations?.length === 0 && (
+              <p className="py-2 text-xs text-slate-400">
+                場所がまだありません。「タグ・属性・場所の管理」で追加できます
+              </p>
+            )}
+            <button
+              type="button"
+              className="mt-1 py-2 text-center text-sm text-red-500"
+              onClick={() => {
+                void setSetting('defaultLocationId', '')
+                setLocationPickerOpen(false)
+              }}
+            >
+              設定しない(自動付与オフ)
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   )

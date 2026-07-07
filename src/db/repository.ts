@@ -2,8 +2,19 @@ import { groupSetsIntoBlocks } from '../lib/groupSets'
 import { estimateOneRepMax } from '../lib/oneRepMax'
 import { effectiveLoad } from '../lib/setFormat'
 import { db } from './db'
-import { getSetting } from './settings'
+import { getSetting, setSetting } from './settings'
 import { NO_TAG, type Day, type Tag, type WeightUnit, type WorkoutSet } from './types'
+
+/**
+ * 既定の場所(ホームジム)の id を解決する。未設定・削除済みなら undefined。
+ * 日レコードの新規作成時に locationId の初期値として使う(#3)。トランザクション開始前に呼ぶこと。
+ */
+async function resolveDefaultLocationId(): Promise<string | undefined> {
+  const id = await getSetting<string>('defaultLocationId')
+  if (!id) return undefined
+  const loc = await db.locations.get(id)
+  return loc ? id : undefined
+}
 
 export interface NewSetInput {
   date: string
@@ -25,6 +36,7 @@ export interface NewSetInput {
 export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
   // settings はトランザクション対象外のテーブルなので、開始前に読む
   const unit = input.unit ?? ((await getSetting<WeightUnit>('defaultUnit')) || 'kg')
+  const defaultLocationId = await resolveDefaultLocationId()
   return db.transaction('rw', [db.sets, db.days], async () => {
     const existing = await db.sets.where('date').equals(input.date).toArray()
     const orderInDay = existing.length ? Math.max(...existing.map((s) => s.orderInDay)) + 1 : 0
@@ -47,7 +59,7 @@ export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
       createdAt: Date.now(),
     }
     await db.sets.add(set)
-    await ensureDay(input.date)
+    await ensureDay(input.date, defaultLocationId)
     return set
   })
 }
@@ -98,10 +110,15 @@ export async function getDay(date: string): Promise<Day | undefined> {
   return db.days.get(date)
 }
 
-async function ensureDay(date: string): Promise<Day> {
+/**
+ * 日レコードを保証する。無ければ作る。
+ * 新規作成時のみ、defaultLocationId が渡されていれば既定の場所を付与する(#3)。
+ * 既存の日には触れない(= 記録がある日の場所を上書きしない)。
+ */
+async function ensureDay(date: string, defaultLocationId?: string): Promise<Day> {
   const existing = await db.days.get(date)
   if (existing) return existing
-  const day: Day = { date }
+  const day: Day = { date, locationId: defaultLocationId }
   await db.days.add(day)
   return day
 }
@@ -185,6 +202,7 @@ export async function copyPreviousSession(
   tagId: string = NO_TAG,
   options?: { clearReps?: boolean },
 ): Promise<number> {
+  const defaultLocationId = await resolveDefaultLocationId()
   return db.transaction('rw', [db.sets, db.days], async () => {
     const history = await db.sets.where('[exerciseId+tagId]').equals([exerciseId, tagId]).toArray()
     const prevDates = history.filter((s) => s.date < targetDate).map((s) => s.date)
@@ -208,7 +226,7 @@ export async function copyPreviousSession(
         createdAt: now,
       })),
     )
-    await ensureDay(targetDate)
+    await ensureDay(targetDate, defaultLocationId)
     return sourceSets.length
   })
 }
@@ -242,6 +260,7 @@ export async function transferSets(options: TransferOptions): Promise<number> {
   const { fromDate, toDate, mode, exerciseId } = options
   const tagId = options.tagId ?? NO_TAG
   if (fromDate === toDate) return 0
+  const defaultLocationId = await resolveDefaultLocationId()
   return db.transaction('rw', [db.sets, db.days], async () => {
     let source = await db.sets.where('date').equals(fromDate).toArray()
     if (exerciseId !== undefined) {
@@ -269,7 +288,7 @@ export async function transferSets(options: TransferOptions): Promise<number> {
       const remaining = await db.sets.where('date').equals(fromDate).count()
       if (remaining === 0) await db.days.delete(fromDate)
     }
-    await ensureDay(toDate)
+    await ensureDay(toDate, defaultLocationId)
     return source.length
   })
 }
@@ -385,6 +404,34 @@ export async function changeBlockTag(
     const sets = await db.sets.where('date').equals(date).toArray()
     const targets = sets.filter((s) => s.exerciseId === exerciseId && s.tagId === fromTagId)
     await db.sets.bulkPut(targets.map((s) => ({ ...s, tagId: toTagId })))
+  })
+}
+
+/**
+ * 記録済みブロック(その日の種目×タグ)の種目を付け替える(全セットに適用)。
+ * 付け替え先に同じ種目×タグのブロックが既にある場合は、その末尾に連結される。
+ */
+export async function changeBlockExercise(
+  date: string,
+  fromExerciseId: string,
+  tagId: string,
+  toExerciseId: string,
+): Promise<void> {
+  if (fromExerciseId === toExerciseId) return
+  await db.transaction('rw', [db.sets], async () => {
+    const daySets = (await db.sets.where('date').equals(date).toArray()).sort(
+      (a, b) => a.orderInDay - b.orderInDay,
+    )
+    const targets = daySets.filter((s) => s.exerciseId === fromExerciseId && s.tagId === tagId)
+    if (!targets.length) return
+    // 移動先ブロックの末尾 orderInDay を求める(既存ブロックがなければ対象の最小位置を維持)
+    const destExisting = daySets.filter((s) => s.exerciseId === toExerciseId && s.tagId === tagId)
+    let order = destExisting.length
+      ? Math.max(...destExisting.map((s) => s.orderInDay)) + 1
+      : Math.min(...targets.map((s) => s.orderInDay))
+    await db.sets.bulkPut(
+      targets.map((s) => ({ ...s, exerciseId: toExerciseId, orderInDay: order++ })),
+    )
   })
 }
 
@@ -598,12 +645,17 @@ export async function renameLocation(id: string, name: string): Promise<void> {
 
 /** 場所を削除する。日の記録で使用中なら削除せず件数を返す */
 export async function deleteLocation(id: string): Promise<DeleteResult> {
-  return db.transaction('rw', [db.locations, db.days], async () => {
+  const result = await db.transaction('rw', [db.locations, db.days], async () => {
     const usedCount = await db.days.filter((d) => d.locationId === id).count()
     if (usedCount > 0) return { deleted: false, usedCount }
     await db.locations.delete(id)
     return { deleted: true }
   })
+  // 既定の場所(ホームジム)に指定されていた場合は設定を解除する(#3)
+  if (result.deleted && (await getSetting<string>('defaultLocationId')) === id) {
+    await setSetting('defaultLocationId', '')
+  }
+  return result
 }
 
 /** セット属性をバンクから削除する。記録で使用中なら削除せず件数を返す */

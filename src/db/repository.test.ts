@@ -7,6 +7,7 @@ import {
   addSet,
   addTag,
   applyTemplate,
+  changeBlockExercise,
   changeBlockTag,
   copyPreviousSession,
   deleteExercise,
@@ -34,6 +35,7 @@ import {
   transferSets,
   updateSet,
 } from './repository'
+import { getSetting, setSetting } from './settings'
 import { NO_TAG } from './types'
 
 beforeEach(async () => {
@@ -320,6 +322,82 @@ describe('changeBlockTag(ブロックのタグ変更)', () => {
     const today = await listSetsByDate('2026-07-04')
     expect(today.map((s) => s.tagId)).toEqual([mid.id, mid.id])
     expect((await listSetsByDate('2026-07-03'))[0].tagId).toBe(heavy.id)
+  })
+})
+
+describe('changeBlockExercise(ブロックの種目変更)', () => {
+  it('その日の対象ブロックだけ種目が変わり、他の日・他ブロックは不変', async () => {
+    const [ex1, ex2, ex3] = await db.exercises.toArray()
+    await addSet({ date: '2026-07-04', exerciseId: ex1.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-04', exerciseId: ex1.id, weight: 100, reps: 3 })
+    await addSet({ date: '2026-07-04', exerciseId: ex3.id, weight: 30, reps: 15 }) // 別ブロック
+    await addSet({ date: '2026-07-03', exerciseId: ex1.id, weight: 95, reps: 5 }) // 別日
+
+    await changeBlockExercise('2026-07-04', ex1.id, NO_TAG, ex2.id)
+    const day = await listSetsByDate('2026-07-04')
+    expect(day.filter((s) => s.exerciseId === ex2.id).map((s) => s.reps)).toEqual([5, 3])
+    expect(day.some((s) => s.exerciseId === ex1.id)).toBe(false)
+    expect((await listSetsByDate('2026-07-03'))[0].exerciseId).toBe(ex1.id) // 別日は不変
+  })
+
+  it('変更先の種目ブロックが既にあれば、その末尾に統合される', async () => {
+    const [ex1, ex2] = await db.exercises.toArray()
+    await addSet({ date: '2026-07-04', exerciseId: ex1.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-04', exerciseId: ex2.id, weight: 60, reps: 10 })
+
+    await changeBlockExercise('2026-07-04', ex1.id, NO_TAG, ex2.id)
+    const sets = await listSetsByDate('2026-07-04')
+    expect(sets.map((s) => s.exerciseId)).toEqual([ex2.id, ex2.id])
+    expect(sets.map((s) => s.reps)).toEqual([10, 5]) // 既存が先、統合分が後ろ
+  })
+
+  it('同じ種目への変更は何もしない', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    await addSet({ date: '2026-07-04', exerciseId: ex.id, weight: 100, reps: 5 })
+    await changeBlockExercise('2026-07-04', ex.id, NO_TAG, ex.id)
+    expect((await listSetsByDate('2026-07-04'))[0].exerciseId).toBe(ex.id)
+  })
+})
+
+describe('ホームジム(既定の場所の自動付与 / #3)', () => {
+  it('既定の場所を設定すると、記録初回入力時に自動で付く', async () => {
+    await setDayLocation('2026-06-01', 'ゴールドジム') // 場所マスタを作る
+    const [loc] = await db.locations.toArray()
+    await setSetting('defaultLocationId', loc.id)
+
+    const ex = (await db.exercises.toArray())[0]
+    await addSet({ date: '2026-07-10', exerciseId: ex.id, weight: 100, reps: 5 })
+    expect((await getDay('2026-07-10'))?.locationId).toBe(loc.id)
+  })
+
+  it('既に場所がある日は上書きしない', async () => {
+    await setDayLocation('2026-06-01', 'ゴールドジム')
+    await setDayLocation('2026-06-02', '市民体育館')
+    const locs = await db.locations.toArray()
+    const gold = locs.find((l) => l.name === 'ゴールドジム')!
+    const city = locs.find((l) => l.name === '市民体育館')!
+    await setSetting('defaultLocationId', gold.id)
+
+    // 2026-06-02 は既に市民体育館。ここに記録を追加しても上書きされない
+    const ex = (await db.exercises.toArray())[0]
+    await addSet({ date: '2026-06-02', exerciseId: ex.id, weight: 100, reps: 5 })
+    expect((await getDay('2026-06-02'))?.locationId).toBe(city.id)
+  })
+
+  it('未設定なら場所は付かない', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    await addSet({ date: '2026-07-10', exerciseId: ex.id, weight: 100, reps: 5 })
+    expect((await getDay('2026-07-10'))?.locationId).toBeUndefined()
+  })
+
+  it('既定の場所を削除すると設定も解除される', async () => {
+    await setDayLocation('2026-06-01', 'ゴールドジム')
+    const [loc] = await db.locations.toArray()
+    await setSetting('defaultLocationId', loc.id)
+    await setDayLocation('2026-06-01', '') // 使用を解除して削除可能に
+
+    expect((await deleteLocation(loc.id)).deleted).toBe(true)
+    expect(await getSetting('defaultLocationId')).toBe('')
   })
 })
 
