@@ -21,6 +21,8 @@ export interface MaxRow {
   oneRm: BestEntry
   /** 最終実施日(ウォームアップ・実績空欄除く) */
   lastDate: string
+  /** 最終ベスト更新日(重量・回数・推定1RM のいずれかを最後に更新した日) */
+  updatedDate: string
 }
 
 /**
@@ -49,6 +51,7 @@ export function computeMaxRows(sets: WorkoutSet[], bodyWeight?: number): MaxRow[
         reps: zero,
         oneRm: zero,
         lastDate: s.date,
+        updatedDate: s.date,
       }
       map.set(key, row)
     }
@@ -58,6 +61,12 @@ export function computeMaxRows(sets: WorkoutSet[], bodyWeight?: number): MaxRow[
     const rm = estimateOneRepMax(load, s.reps)
     if (rm > row.oneRm.value) row.oneRm = { ...entry, value: rm }
     if (s.date > row.lastDate) row.lastDate = s.date
+  }
+  // ベスト更新日 = 3 指標の達成日のうち最新(各 date は「その値を最初に達成した日」= 最後に更新した日)
+  for (const row of map.values()) {
+    row.updatedDate = [row.load.date, row.reps.date, row.oneRm.date].reduce((a, b) =>
+      a > b ? a : b,
+    )
   }
   return [...map.values()]
 }

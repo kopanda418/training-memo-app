@@ -31,6 +31,8 @@ describe('computeMaxRows', () => {
     expect(row.reps).toMatchObject({ value: 12, date: '2026-06-01', load: 60 })
     expect(Math.round(row.oneRm.value * 10) / 10).toBe(113.3)
     expect(row.oneRm.date).toBe('2026-06-20')
+    // 更新日 = 3 指標の達成日のうち最新(1RM を最後に更新した 6/20)
+    expect(row.updatedDate).toBe('2026-06-20')
   })
 
   it('同値は最古の達成日を保持し、ウォームアップ・実績空欄は除外', () => {

@@ -1,33 +1,41 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useNavigate } from 'react-router'
 import { Modal } from '../../components/Modal'
 import { db } from '../../db/db'
 import { useMasters } from '../../db/hooks'
 import { useSetting } from '../../db/settings'
-import { formatDateLabel } from '../../lib/date'
+import { formatDateLabel, todayString } from '../../lib/date'
 import { computeMaxRows, type BestEntry, type MaxRow } from '../../lib/maxStats'
 
 const round1 = (v: number) => Math.round(v * 10) / 10
 
-type SortKey = 'lastDate' | 'oneRm'
+type SortKey = 'updatedDate' | 'lastDate' | 'oneRm'
 
 /** 種目×タグごとの MAX 記録一覧。行タップで達成日・内訳の詳細を表示 */
 export function MaxView() {
+  const navigate = useNavigate()
   const sets = useLiveQuery(() => db.sets.toArray(), [])
   const bodyWeight = useSetting<number>('bodyWeight')
   const { exerciseName, tagName } = useMasters()
   const [selected, setSelected] = useState<MaxRow | null>(null)
-  const [sortKey, setSortKey] = useState<SortKey>('lastDate')
+  const [sortKey, setSortKey] = useState<SortKey>('updatedDate')
   const [query, setQuery] = useState('')
+
+  // 達成日タップでその日の記録画面へ移動する(#7)
+  const openRecord = (date: string) => {
+    navigate(date === todayString() ? '/record' : `/record?date=${date}`)
+  }
 
   const rows = useMemo(() => {
     const base = computeMaxRows(sets ?? [], bodyWeight)
     const q = query.trim()
     const filtered = q ? base.filter((r) => exerciseName(r.exerciseId).includes(q)) : base
-    if (sortKey === 'lastDate') {
-      return [...filtered].sort((a, b) => b.lastDate.localeCompare(a.lastDate))
+    if (sortKey === 'oneRm') {
+      return [...filtered].sort((a, b) => b.oneRm.value - a.oneRm.value)
     }
-    return [...filtered].sort((a, b) => b.oneRm.value - a.oneRm.value)
+    const dateOf = (r: MaxRow) => (sortKey === 'updatedDate' ? r.updatedDate : r.lastDate)
+    return [...filtered].sort((a, b) => dateOf(b).localeCompare(dateOf(a)))
   }, [sets, bodyWeight, sortKey, query, exerciseName])
 
   const chipClass = (active: boolean) =>
@@ -44,7 +52,16 @@ export function MaxView() {
       <span className="text-xs text-slate-400">
         ({round1(entry.load)}kg × {entry.reps}回)
       </span>
-      <span className="ml-auto shrink-0 text-xs text-slate-400">{formatDateLabel(entry.date)}</span>
+      <button
+        type="button"
+        className="ml-auto shrink-0 text-xs text-sky-600 dark:text-sky-400"
+        onClick={() => {
+          setSelected(null)
+          openRecord(entry.date)
+        }}
+      >
+        {formatDateLabel(entry.date)} ›
+      </button>
     </div>
   )
 
@@ -61,7 +78,14 @@ export function MaxView() {
           onChange={(e) => setQuery(e.target.value)}
         />
 
-        <div className="mb-2 flex gap-1.5">
+        <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
+          <button
+            type="button"
+            className={chipClass(sortKey === 'updatedDate')}
+            onClick={() => setSortKey('updatedDate')}
+          >
+            最近更新順
+          </button>
           <button
             type="button"
             className={chipClass(sortKey === 'lastDate')}
@@ -134,8 +158,8 @@ export function MaxView() {
             {detailRow('推定1RM', selected.oneRm, `${round1(selected.oneRm.value)}kg`)}
           </div>
           <p className="mt-2 text-[10px] text-slate-400">
-            日付はその値を最初に達成した日(最古)。心当たりのない記録は、該当日の軽いセットに
-            W(ウォームアップ)を付けると集計から外れます
+            日付はその値を最初に達成した日(最古)。タップするとその日の記録画面へ移動します。
+            心当たりのない記録は、該当日の軽いセットに W(ウォームアップ)を付けると集計から外れます
           </p>
         </Modal>
       )}
