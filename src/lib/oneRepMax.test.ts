@@ -6,8 +6,8 @@ describe('estimateOneRepMax', () => {
     expect(estimateOneRepMax(100, 1)).toBe(100)
   })
 
-  it('Epley 式で計算する (100kg x 10 → 133.3kg)', () => {
-    expect(estimateOneRepMax(100, 10)).toBeCloseTo(133.33, 1)
+  it("O'Conner 式で計算する (100kg x 10 → 125kg)", () => {
+    expect(estimateOneRepMax(100, 10)).toBeCloseTo(125, 1)
   })
 
   it('不正な入力は 0', () => {

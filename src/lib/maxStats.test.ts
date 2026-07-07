@@ -20,16 +20,20 @@ function makeSet(partial: Partial<WorkoutSet>): WorkoutSet {
 
 describe('computeMaxRows', () => {
   it('重量・回数・推定1RM は独立のベストで、それぞれ達成セットの内容を持つ', () => {
+    // O'Conner 式: 1RM = weight × (1 + reps / 40)
+    // 6/01: 60 × (1 + 12/40) = 78   → 回数ベスト
+    // 6/10: 100 × (1 + 1/40)  ≈ 102.5 → 重量ベスト
+    // 6/20: 90 × (1 + 8/40)   = 108  → 推定1RMベスト
     const rows = computeMaxRows([
       makeSet({ date: '2026-06-01', weight: 60, reps: 12 }), // 回数ベスト
-      makeSet({ date: '2026-06-10', weight: 105, reps: 1 }), // 重量ベスト
-      makeSet({ date: '2026-06-20', weight: 100, reps: 4 }), // 1RMベスト(113.3)
+      makeSet({ date: '2026-06-10', weight: 100, reps: 1 }), // 重量ベスト
+      makeSet({ date: '2026-06-20', weight: 90, reps: 8 }), // 1RMベスト(108)
     ])
     expect(rows).toHaveLength(1)
     const row = rows[0]
-    expect(row.load).toMatchObject({ value: 105, date: '2026-06-10', reps: 1 })
+    expect(row.load).toMatchObject({ value: 100, date: '2026-06-10', reps: 1 })
     expect(row.reps).toMatchObject({ value: 12, date: '2026-06-01', load: 60 })
-    expect(Math.round(row.oneRm.value * 10) / 10).toBe(113.3)
+    expect(Math.round(row.oneRm.value * 10) / 10).toBe(108)
     expect(row.oneRm.date).toBe('2026-06-20')
     // 更新日 = 3 指標の達成日のうち最新(1RM を最後に更新した 6/20)
     expect(row.updatedDate).toBe('2026-06-20')
