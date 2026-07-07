@@ -1,4 +1,5 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ToastHost } from '../components/Toast'
 import { TimerOverlay } from '../features/timer/TimerOverlay'
 import { TabBar } from './TabBar'
@@ -22,15 +23,17 @@ export default function App() {
         }}
       >
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <Routes>
-            <Route path="/" element={<Navigate to="/record" replace />} />
-            <Route path="/record" element={<RecordPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/settings/exercises" element={<ExerciseManagerPage />} />
-            <Route path="/settings/attributes" element={<AttributeManagerPage />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Navigate to="/record" replace />} />
+              <Route path="/record" element={<RecordPage />} />
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings/exercises" element={<ExerciseManagerPage />} />
+              <Route path="/settings/attributes" element={<AttributeManagerPage />} />
+            </Routes>
+          </ErrorBoundary>
         </main>
         <TabBar />
         <TimerOverlay />

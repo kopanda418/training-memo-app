@@ -19,7 +19,7 @@ export function AnalyticsPage() {
 
   return (
     <div>
-      <div className="sticky top-0 z-10 bg-white/95 p-3 pb-2 backdrop-blur dark:bg-slate-950/95">
+      <div className="sticky top-0 z-10 bg-white p-3 pb-2 dark:bg-slate-950">
         <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
           <button
             type="button"

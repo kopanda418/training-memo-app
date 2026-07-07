@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useSearchParams } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { useMasters } from '../../db/hooks'
 import { listSetsByDate } from '../../db/repository'
 import { addDays, formatDateLabel, todayString } from '../../lib/date'
@@ -17,6 +17,7 @@ interface BlockKey {
 
 export function RecordPage() {
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const today = todayString()
   const date = params.get('date') ?? today
   const setDate = (d: string) => {
@@ -63,7 +64,7 @@ export function RecordPage() {
 
   return (
     <div className="flex min-h-full flex-col">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
         <div className="flex items-center justify-between px-1 py-1.5">
           <button
             type="button"
@@ -74,7 +75,14 @@ export function RecordPage() {
             ‹
           </button>
           <div className="flex flex-col items-center leading-tight">
-            <span className="text-base font-bold">{formatDateLabel(date)}</span>
+            {/* 日付タップでその月の履歴カレンダーへ(#5) */}
+            <button
+              type="button"
+              className="text-base font-bold active:text-sky-600"
+              onClick={() => navigate(`/history?view=calendar&ym=${date.slice(0, 7)}`)}
+            >
+              {formatDateLabel(date)}
+            </button>
             {date !== today && (
               <button
                 type="button"
