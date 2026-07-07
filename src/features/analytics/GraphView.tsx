@@ -38,18 +38,33 @@ const PERIODS = [
   { key: 0, label: '全期間' },
 ] as const
 
-/** タグフィルタ: 'all' はすべて、NO_TAG はタグなしのみ、それ以外はタグ ID */
-type TagFilter = 'all' | string
+/** タグフィルタのモード。include = 選択タグのみ合算、exclude = 選択タグを除外 */
+type FilterMode = 'include' | 'exclude'
 
 /** 種目選択 → 全タグ合算で即表示 → タグフィルタチップで絞り込み */
 export default function GraphView() {
   const [exerciseId, setExerciseId] = useState<string | null>(null)
-  const [tagFilter, setTagFilter] = useState<TagFilter>('all')
+  const [filterMode, setFilterMode] = useState<FilterMode>('include')
+  const [selectedTagIds, setSelectedTagIds] = useState<ReadonlySet<string>>(new Set())
   const [metric, setMetric] = useState<MetricKey>('oneRm')
   const [periodDays, setPeriodDays] = useState<number>(0)
   const [yMin, setYMin] = useState<number | undefined>(undefined)
   const [yMax, setYMax] = useState<number | undefined>(undefined)
   const [pickerOpen, setPickerOpen] = useState(false)
+
+  const toggleTag = (tagId: string) => {
+    setSelectedTagIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(tagId)) next.delete(tagId)
+      else next.add(tagId)
+      return next
+    })
+  }
+
+  const switchMode = (mode: FilterMode) => {
+    setFilterMode(mode)
+    setSelectedTagIds(new Set())
+  }
 
   const { exerciseName, tags } = useMasters()
   const bodyWeight = useSetting<number>('bodyWeight')
@@ -71,7 +86,9 @@ export default function GraphView() {
     for (const s of sets ?? []) {
       if (s.isWarmup || s.reps <= 0) continue
       if (cutoff && s.date < cutoff) continue
-      if (tagFilter !== 'all' && s.tagId !== tagFilter) continue
+      if (filterMode === 'include' && selectedTagIds.size > 0 && !selectedTagIds.has(s.tagId))
+        continue
+      if (filterMode === 'exclude' && selectedTagIds.has(s.tagId)) continue
       const load = effectiveLoad(s, bodyWeight)
       if (load === undefined) continue
       let p = byDate.get(s.date)
@@ -85,7 +102,7 @@ export default function GraphView() {
       p.sets++
     }
     return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [sets, bodyWeight, periodDays, tagFilter])
+  }, [sets, bodyWeight, periodDays, filterMode, selectedTagIds])
 
   const metricLabel = METRICS.find((m) => m.key === metric)!.label
   const chartData = {
@@ -112,6 +129,21 @@ export default function GraphView() {
         : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
     }`
 
+  const tagChipClass = (tagId: string) => {
+    const selected = selectedTagIds.has(tagId)
+    if (!selected)
+      return 'shrink-0 rounded-full px-3 py-1.5 text-xs bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+    if (filterMode === 'include')
+      return 'shrink-0 rounded-full px-3 py-1.5 text-xs bg-sky-600 font-bold text-white'
+    return 'shrink-0 rounded-full px-3 py-1.5 text-xs bg-rose-500 font-bold text-white'
+  }
+
+  const tagFilterSummary = () => {
+    if (selectedTagIds.size === 0) return null
+    const n = selectedTagIds.size
+    return filterMode === 'include' ? `${n}タグの記録を合算表示` : `${n}タグを除外して表示`
+  }
+
   return (
     <div className="flex flex-col gap-3 p-3">
       <button
@@ -124,36 +156,78 @@ export default function GraphView() {
 
       {exerciseId && (
         <>
-          {/* タグフィルタチップ */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            <button
-              type="button"
-              className={chipClass(tagFilter === 'all')}
-              onClick={() => setTagFilter('all')}
-            >
-              すべて
-            </button>
-            {usedTagIds.has(NO_TAG) && (
-              <button
-                type="button"
-                className={chipClass(tagFilter === NO_TAG)}
-                onClick={() => setTagFilter(NO_TAG)}
-              >
-                タグなし
-              </button>
-            )}
-            {tags
-              ?.filter((t) => usedTagIds.has(t.id))
-              .map((tag) => (
+          {/* タグフィルタ: モード切替 + 複数選択 */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
                 <button
-                  key={tag.id}
                   type="button"
-                  className={chipClass(tagFilter === tag.id)}
-                  onClick={() => setTagFilter(tag.id)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${
+                    filterMode === 'include'
+                      ? 'bg-white text-slate-900 shadow dark:bg-slate-600 dark:text-white'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                  onClick={() => switchMode('include')}
                 >
-                  {tag.name}
+                  タグを含める
                 </button>
-              ))}
+                <button
+                  type="button"
+                  className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${
+                    filterMode === 'exclude'
+                      ? 'bg-white text-slate-900 shadow dark:bg-slate-600 dark:text-white'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                  onClick={() => switchMode('exclude')}
+                >
+                  タグを除外
+                </button>
+              </div>
+              {selectedTagIds.size > 0 && (
+                <button
+                  type="button"
+                  className="text-xs text-slate-400 underline"
+                  onClick={() => setSelectedTagIds(new Set())}
+                >
+                  リセット
+                </button>
+              )}
+            </div>
+
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {filterMode === 'include' && (
+                <button
+                  type="button"
+                  className={chipClass(selectedTagIds.size === 0)}
+                  onClick={() => setSelectedTagIds(new Set())}
+                >
+                  すべて
+                </button>
+              )}
+              {usedTagIds.has(NO_TAG) && (
+                <button
+                  type="button"
+                  className={tagChipClass(NO_TAG)}
+                  onClick={() => toggleTag(NO_TAG)}
+                >
+                  タグなし
+                </button>
+              )}
+              {tags
+                ?.filter((t) => usedTagIds.has(t.id))
+                .map((tag) => (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    className={tagChipClass(tag.id)}
+                    onClick={() => toggleTag(tag.id)}
+                  >
+                    {tag.name}
+                  </button>
+                ))}
+            </div>
+
+            {tagFilterSummary() && <p className="text-xs text-slate-400">{tagFilterSummary()}</p>}
           </div>
 
           <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -242,7 +316,8 @@ export default function GraphView() {
           onClose={() => setPickerOpen(false)}
           onDone={(id) => {
             setExerciseId(id)
-            setTagFilter('all')
+            setFilterMode('include')
+            setSelectedTagIds(new Set())
           }}
         />
       )}
