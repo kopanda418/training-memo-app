@@ -77,6 +77,8 @@ export interface Location {
   id: string
   name: string
   lastUsedAt: number
+  /** v6: 管理画面での並び替え用(旧データは lastUsedAt 降順で初期化) */
+  sortOrder: number
 }
 
 /** セット属性の入力候補(属性バンク) */
@@ -84,6 +86,8 @@ export interface SetAttribute {
   id: string
   name: string
   lastUsedAt: number
+  /** v6: 管理画面での並び替え用(旧データは lastUsedAt 降順で初期化) */
+  sortOrder: number
 }
 
 /** トレーニングメニューのテンプレート(種目×タグのリスト) */

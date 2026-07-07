@@ -51,6 +51,7 @@ export class TrainingMemoDB extends Dexie {
           id: crypto.randomUUID(),
           name: '補助',
           lastUsedAt: Date.now(),
+          sortOrder: 0,
         })
       })
     // v3: 部位マスタを追加(追加可能にするため固定配列からテーブルへ)
@@ -75,6 +76,18 @@ export class TrainingMemoDB extends Dexie {
         withAttr.map((s) =>
           sets.update(s.id, { attributes: [s.attribute!], attribute: undefined }),
         ),
+      )
+    })
+    // v6: Location・SetAttribute に sortOrder を追加(旧データは lastUsedAt 降順で初期化)
+    this.version(6).upgrade(async (tx) => {
+      const locs = await tx.table<Location, string>('locations').toArray()
+      locs.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+      await Promise.all(locs.map((l, i) => tx.table('locations').update(l.id, { sortOrder: i })))
+
+      const attrs = await tx.table<SetAttribute, string>('setAttributes').toArray()
+      attrs.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+      await Promise.all(
+        attrs.map((a, i) => tx.table('setAttributes').update(a.id, { sortOrder: i })),
       )
     })
     // 初回作成時のみデフォルトマスタを投入

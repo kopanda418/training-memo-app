@@ -127,16 +127,38 @@ export async function setDayLocation(date: string, name: string): Promise<void> 
       await db.locations.update(found.id, { lastUsedAt: now })
     } else {
       locationId = crypto.randomUUID()
-      await db.locations.add({ id: locationId, name: trimmed, lastUsedAt: now })
+      const all = await db.locations.toArray()
+      const sortOrder = all.length ? Math.max(...all.map((l) => l.sortOrder ?? 0)) + 1 : 0
+      await db.locations.add({ id: locationId, name: trimmed, lastUsedAt: now, sortOrder })
     }
     await db.days.update(date, { locationId })
   })
 }
 
-/** 場所の入力候補(最近使った順) */
+/** 場所の入力候補(sortOrder 順、未設定は lastUsedAt 降順) */
 export async function listLocations() {
   const locations = await db.locations.toArray()
-  return locations.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+  return locations.sort(
+    (a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity) || b.lastUsedAt - a.lastUsedAt,
+  )
+}
+
+/** 場所を追加する(同名が既にあれば何もしない) */
+export async function addLocation(name: string): Promise<void> {
+  const trimmed = name.trim()
+  if (!trimmed) return
+  await db.transaction('rw', [db.locations], async () => {
+    const found = await db.locations.where('name').equals(trimmed).first()
+    if (found) return
+    const all = await db.locations.toArray()
+    const sortOrder = all.length ? Math.max(...all.map((l) => l.sortOrder ?? 0)) + 1 : 0
+    await db.locations.add({
+      id: crypto.randomUUID(),
+      name: trimmed,
+      lastUsedAt: Date.now(),
+      sortOrder,
+    })
+  })
 }
 
 /** 種目×タグの直近セット(新規セットのプリフィル用)。beforeOrOn を渡すとその日以前に限定 */
@@ -299,9 +321,12 @@ export async function reorderSetsInBlock(
 }
 
 /** セット属性バンクの入力候補(最近使った順) */
+/** セット属性の候補(sortOrder 順、未設定は lastUsedAt 降順) */
 export async function listSetAttributes() {
   const attrs = await db.setAttributes.toArray()
-  return attrs.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+  return attrs.sort(
+    (a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity) || b.lastUsedAt - a.lastUsedAt,
+  )
 }
 
 /** セット属性をバンクへ登録する(既存名は lastUsedAt 更新)。クイックボタン設定からの新規作成もここを通す */
@@ -313,7 +338,14 @@ export async function upsertSetAttribute(name: string): Promise<void> {
     if (found) {
       await db.setAttributes.update(found.id, { lastUsedAt: Date.now() })
     } else {
-      await db.setAttributes.add({ id: crypto.randomUUID(), name: trimmed, lastUsedAt: Date.now() })
+      const all = await db.setAttributes.toArray()
+      const sortOrder = all.length ? Math.max(...all.map((a) => a.sortOrder ?? 0)) + 1 : 0
+      await db.setAttributes.add({
+        id: crypto.randomUUID(),
+        name: trimmed,
+        lastUsedAt: Date.now(),
+        sortOrder,
+      })
     }
   })
 }
@@ -603,5 +635,32 @@ export async function addTag(name: string): Promise<Tag> {
     }
     await db.tags.add(tag)
     return tag
+  })
+}
+
+/** 種目タグの並び順を一括更新(orderedIds の順に sortOrder を 0,1,2... と振り直す) */
+export async function reorderTags(orderedIds: string[]): Promise<void> {
+  await db.transaction('rw', [db.tags], async () => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await db.tags.update(orderedIds[i], { sortOrder: i })
+    }
+  })
+}
+
+/** 場所の並び順を一括更新 */
+export async function reorderLocations(orderedIds: string[]): Promise<void> {
+  await db.transaction('rw', [db.locations], async () => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await db.locations.update(orderedIds[i], { sortOrder: i })
+    }
+  })
+}
+
+/** セット属性の並び順を一括更新 */
+export async function reorderSetAttributes(orderedIds: string[]): Promise<void> {
+  await db.transaction('rw', [db.setAttributes], async () => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await db.setAttributes.update(orderedIds[i], { sortOrder: i })
+    }
   })
 }

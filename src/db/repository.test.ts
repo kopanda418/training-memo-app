@@ -106,9 +106,9 @@ describe('setDayLocation / listLocations', () => {
     const day2 = await getDay('2026-07-02')
     expect(day1?.locationId).toBe(day2?.locationId)
 
-    // 最近使った順
+    // sortOrder(追加順)で並ぶ: ゴールドジム(先に追加) → 市民体育館
     const candidates = await listLocations()
-    expect(candidates[0].name).toBe('市民体育館')
+    expect(candidates[0].name).toBe('ゴールドジム 渋谷')
   })
 
   it('空文字で場所設定を解除できる', async () => {
@@ -298,7 +298,7 @@ describe('toggleSetAttribute / listSetAttributes(属性バンク)', () => {
 
     await toggleSetAttribute(s2.id, 'RPE9')
     const bank = await listSetAttributes()
-    expect(bank.map((a) => a.name)).toEqual(['RPE9', 'ベルトなし']) // 最近使った順
+    expect(bank.map((a) => a.name)).toEqual(['ベルトなし', 'RPE9']) // sortOrder(追加順)で並ぶ
     expect(bank).toHaveLength(2)
 
     // 同じ属性をもう一度トグル → 解除

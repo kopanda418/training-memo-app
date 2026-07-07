@@ -48,9 +48,9 @@ sets: 'id, date, [exerciseId+tagId], exerciseId'
 //   attribute?(セット属性・任意テキスト), isAssisted(deprecated→attribute),
 //   unit ('kg'|'lbs'), memo?, orderInDay, createdAt }
 locations: 'id, name'
-// { id, name, lastUsedAt }  … 場所の入力候補用マスタ
+// { id, name, lastUsedAt, sortOrder } … 場所マスタ(v6: sortOrder 追加)
 setAttributes: 'id, name' // v2 追加
-// { id, name, lastUsedAt } … セット属性バンク(入力候補)
+// { id, name, lastUsedAt, sortOrder } … セット属性バンク(v6: sortOrder 追加)
 bodyParts: 'id, name, sortOrder' // v3 追加
 // { id, name, sortOrder } … 部位マスタ(追加可能。デフォルト7部位をシード)
 settings: 'key'
