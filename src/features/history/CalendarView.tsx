@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
+import { Modal } from '../../components/Modal'
 import { TransferModal } from '../../components/TransferModal'
 import { useMasters } from '../../db/hooks'
 import { listRecordedDates, listSetsByDate } from '../../db/repository'
@@ -13,11 +14,20 @@ const WEEKDAY_HEADER = ['日', '月', '火', '水', '木', '金', '土']
 
 export function CalendarView() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
   const today = todayString()
-  const [y0, m0] = today.split('-').map(Number)
-  const [[year, month], setYm] = useState<[number, number]>([y0, m0])
+  // 記録画面の日付タップから ?ym=YYYY-MM で対象月を指定して遷移してくる(#5)
+  const ymParam = params.get('ym')
+  const [todayY, todayM] = today.split('-').map(Number)
+  const [initY, initM] = (ymParam && /^\d{4}-\d{2}$/.test(ymParam) ? ymParam : today)
+    .split('-')
+    .map(Number)
+  const [[year, month], setYm] = useState<[number, number]>([initY, initM])
   const [selected, setSelected] = useState<string | null>(null)
   const [transferOpen, setTransferOpen] = useState(false)
+  // 月/年ピッカー(年月ラベルのタップで開く。#6)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerYear, setPickerYear] = useState(initY)
 
   const weeks = useMemo(() => monthGrid(year, month), [year, month])
   const gridStart = weeks[0][0].date
@@ -47,9 +57,16 @@ export function CalendarView() {
         >
           ‹
         </button>
-        <span className="text-base font-bold">
+        <button
+          type="button"
+          className="rounded-lg px-3 py-1 text-base font-bold active:bg-slate-100 dark:active:bg-slate-800"
+          onClick={() => {
+            setPickerYear(year)
+            setPickerOpen(true)
+          }}
+        >
           {year}年{month}月
-        </span>
+        </button>
         <button
           type="button"
           aria-label="次の月"
@@ -143,6 +160,56 @@ export function CalendarView() {
           title={`${formatDateLabel(selected)} の記録を別の日へ`}
           fromDate={selected}
         />
+      )}
+
+      {pickerOpen && (
+        <Modal open onClose={() => setPickerOpen(false)} title="月を選択">
+          {/* 年の移動(上位階層)。‹ › で年を切り替える */}
+          <div className="mb-3 flex items-center justify-between">
+            <button
+              type="button"
+              aria-label="前の年"
+              className="px-4 py-1 text-xl text-slate-500 active:text-sky-600"
+              onClick={() => setPickerYear((y) => y - 1)}
+            >
+              ‹
+            </button>
+            <span className="text-base font-bold">{pickerYear}年</span>
+            <button
+              type="button"
+              aria-label="次の年"
+              className="px-4 py-1 text-xl text-slate-500 active:text-sky-600"
+              onClick={() => setPickerYear((y) => y + 1)}
+            >
+              ›
+            </button>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+              const isCurrent = pickerYear === year && m === month
+              const isThisMonth = pickerYear === todayY && m === todayM
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  className={`rounded-lg py-2.5 text-sm font-bold ${
+                    isCurrent
+                      ? 'bg-sky-600 text-white'
+                      : isThisMonth
+                        ? 'border border-sky-600 text-sky-600 dark:text-sky-400'
+                        : 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
+                  }`}
+                  onClick={() => {
+                    setYm([pickerYear, m])
+                    setPickerOpen(false)
+                  }}
+                >
+                  {m}月
+                </button>
+              )
+            })}
+          </div>
+        </Modal>
       )}
     </div>
   )
