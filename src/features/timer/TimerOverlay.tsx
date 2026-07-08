@@ -37,8 +37,13 @@ export function TimerOverlay() {
   // ネイティブ連携 ON なら iOS 時計アプリで開始(ロック中も鳴る)、OFF なら従来の Web Audio タイマー
   const handleStart = (sec: number) => {
     if (sec <= 0) return
-    if (nativeEnabled) runNativeTimer(sec, shortcutName)
-    else void startTimer(sec)
+    if (nativeEnabled) {
+      // 時計アプリへ遷移するので、復帰時に残らないようボトムシートは閉じておく
+      runNativeTimer(sec, shortcutName)
+      closeTimerOverlay()
+    } else {
+      void startTimer(sec)
+    }
   }
 
   return (
