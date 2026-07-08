@@ -94,6 +94,16 @@ export function TimerOverlay() {
               開始
             </button>
           </div>
+          {/* [Phase 0 実験] iPhone標準タイマー連携の挙動確認用。確認後に本実装へ差し替え・削除する */}
+          <button
+            type="button"
+            className="mt-1 rounded-lg border border-dashed border-amber-400 py-2.5 text-xs font-bold text-amber-600 active:bg-amber-50 dark:border-amber-500 dark:text-amber-400 dark:active:bg-amber-900/20"
+            onClick={() => {
+              window.location.href = 'shortcuts://run-shortcut?name=筋トレタイマー&input=90'
+            }}
+          >
+            🧪[実験] iPhoneタイマー90秒を起動
+          </button>
         </div>
       )}
     </Modal>
