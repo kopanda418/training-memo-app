@@ -17,6 +17,7 @@ import {
   setBottomGapPx,
 } from '../../app/viewportFix'
 import { SOUND_OPTIONS, type SoundId } from '../timer/sounds'
+import { DEFAULT_SHORTCUT_NAME, PWA_URL } from '../timer/nativeTimer'
 import { previewSound } from '../timer/timerStore'
 import { AttributePicker } from '../record/AttributePicker'
 import { TagSelectModal } from './TagSelectModal'
@@ -31,6 +32,8 @@ export function SettingsPage() {
   const theme = useSetting<'light' | 'dark' | 'system'>('theme')
   const defaultUnit = useSetting<'kg' | 'lbs'>('defaultUnit')
   const timerSound = (useSetting<SoundId>('timerSound') ?? 'rising') as SoundId
+  const nativeTimerEnabled = useSetting<boolean>('nativeTimerEnabled') ?? false
+  const nativeShortcutName = useSetting<string>('nativeTimerShortcutName') ?? DEFAULT_SHORTCUT_NAME
   const quickAttrs = useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
   const quickTagIds = useSetting<string[]>('quickExerciseTagIds')
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
@@ -42,6 +45,7 @@ export function SettingsPage() {
   const [locationPickerOpen, setLocationPickerOpen] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
   const [gapPx, setGapPx] = useState<number>(getBottomGapPx())
+  const [nativeHelpOpen, setNativeHelpOpen] = useState(false)
 
   const changeGapPx = (px: number) => {
     setBottomGapPx(px)
@@ -326,6 +330,81 @@ export function SettingsPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-sm font-bold">iPhone の時計アプリでタイマー(任意)</h2>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          オンにすると、タイマーの開始時に iOS「ショートカット」を呼び出し、標準の時計アプリで
+          タイマーを開始します。
+          <span className="font-bold">画面をロックしても鳴ります。</span>
+          先に下の手順でショートカットを作成してください
+        </p>
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            className={`flex-1 rounded-lg py-2.5 text-sm font-bold ${
+              nativeTimerEnabled
+                ? 'bg-sky-600 text-white'
+                : 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
+            }`}
+            onClick={() => void setSetting('nativeTimerEnabled', true)}
+          >
+            オン
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded-lg py-2.5 text-sm font-bold ${
+              nativeTimerEnabled
+                ? 'border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300'
+                : 'bg-sky-600 text-white'
+            }`}
+            onClick={() => void setSetting('nativeTimerEnabled', false)}
+          >
+            オフ(標準の音で鳴らす)
+          </button>
+        </div>
+        {nativeTimerEnabled && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
+              ショートカット名
+            </span>
+            <CommitInput
+              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base font-bold dark:border-slate-600 dark:bg-slate-800"
+              value={nativeShortcutName}
+              placeholder={DEFAULT_SHORTCUT_NAME}
+              onCommit={(t) =>
+                void setSetting('nativeTimerShortcutName', t.trim() || DEFAULT_SHORTCUT_NAME)
+              }
+            />
+          </div>
+        )}
+        <button
+          type="button"
+          className="mt-2 text-left text-xs font-bold text-sky-600 dark:text-sky-400"
+          onClick={() => setNativeHelpOpen((v) => !v)}
+        >
+          {nativeHelpOpen ? '▼ ショートカットの作成手順' : '▶ ショートカットの作成手順を見る'}
+        </button>
+        {nativeHelpOpen && (
+          <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-xs text-slate-600 dark:text-slate-300">
+            <li>
+              iPhone の「ショートカット」アプリで新規作成し、名前を「
+              <span className="font-bold">{nativeShortcutName}</span>
+              」にする(上のショートカット名と一致させる)
+            </li>
+            <li>「タイマーを開始」アクションを追加する</li>
+            <li>期間の数字をタップし「ショートカットの入力」を挿入、単位を「秒」にする</li>
+            <li>
+              (任意)末尾に「URL
+              を開く」アクションを追加し、次を入力すると開始後にこのアプリへ自動で戻ります:
+              <br />
+              <code className="break-all rounded bg-slate-100 px-1 py-0.5 text-[10px] dark:bg-slate-800">
+                {PWA_URL}
+              </code>
+            </li>
+          </ol>
+        )}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">

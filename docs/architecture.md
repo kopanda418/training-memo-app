@@ -89,7 +89,8 @@ settings: 'key'
 | API / 挙動               | 状況と対策                                                                                                                              |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | Screen Wake Lock         | iOS 16.4+ で利用可。`visibilitychange` で解除されるので復帰時に再取得。取得失敗時は「画面ロックを無効にできません」と表示               |
-| プッシュ通知             | ロック中のタイマー通知は事実上不可 → Wake Lock + Web Audio の音で代替(要件で確定済み)                                                   |
+| プッシュ通知             | ロック中のタイマー通知は事実上不可 → Wake Lock + Web Audio の音で代替(要件で確定済み)。ロック中も確実に鳴らしたい場合は任意で iOS ショートカット連携(下記)                                                   |
+| iOS 標準タイマー連携(任意) | 設定 `nativeTimerEnabled` ON で、タイマー開始時に `shortcuts://run-shortcut?name=<名前>&input=<秒>` を開き、ユーザー作成のショートカット経由で標準の時計アプリのタイマーを起動。**画面ロック中でも鳴る**。ショートカットはユーザーが手動作成(名前は `nativeTimerShortcutName` と一致)。実装は `features/timer/nativeTimer.ts`。ON 時は PWA 側の Web Audio/Wake Lock/カウントダウンは動かさず完全にネイティブへ委譲 |
 | バイブレーション         | `navigator.vibrate` は iOS 非対応。使わない                                                                                             |
 | 音の再生                 | ユーザー操作起点でないと再生不可 → タイマー開始タップ時に AudioContext を resume しておく                                               |
 | IndexedDB 永続性         | ホーム画面追加した PWA なら Safari の 7 日間 ITP 削除の対象外だが、`navigator.storage.persist()` を要求 + JSON バックアップ導線を設ける |

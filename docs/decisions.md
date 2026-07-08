@@ -58,3 +58,11 @@
 - **決定**: GitHub Actions からのデプロイは `actions/deploy-pages`(artifact 方式)ではなく、ビルド成果物を `gh-pages` ブランチへ force push する legacy 方式にする(ADR-004 の補足)
 - **理由**: artifact 方式が M2 デプロイ時から "Deployment failed, try again later" で連続失敗(ビルドは成功、GitHub ステータス正常、API にエラー詳細なし、新 SHA・新 artifact でも再現)。gh-pages ブランチ方式は枯れており動作が追いやすい
 - **備考**: Pages 設定は `build_type=legacy` / source=gh-pages ブランチに API で変更済み。`.nojekyll` を dist に含めて Jekyll 処理を回避
+
+## ADR-009: ロック中の鳴動は iOS ショートカット連携を任意オプションで追加
+
+- **日付**: 2026-07-08
+- **決定**: 既存の Web Audio + Wake Lock タイマーは残したまま、設定 `nativeTimerEnabled`(既定 OFF)で iOS「ショートカット」経由の標準タイマー起動を追加する。ON 時はタイマー開始で `shortcuts://run-shortcut?name=<名前>&input=<秒>` を開き、PWA 側の音/Wake Lock/カウントダウンは動かさず完全にネイティブへ委譲する
+- **理由**: iOS PWA は画面ロック(電源ボタン)で Wake Lock 解除 + AudioContext suspend となり終了音が鳴らない。標準の時計アプリのタイマーはシステム管理でロック中も確実に鳴る。`shortcuts://` は Apple 公式サポートで、standalone PWA から確認ダイアログなしで起動・ロック中鳴動・(ショートカット末尾の「URLを開く」で)PWA 自動復帰まで実機確認済み
+- **却下案**: (1)Web Audio を完全に置き換える → ショートカット未作成ユーザーが使えなくなる/開始のたび時計アプリへ画面遷移するデメリットを全員に強制するため却下、オプトインとした。(2)標準の Clock URL スキーム直叩き → 時計アプリを開くだけで秒数を渡せない(公式に duration パラメータ非対応)ためショートカット経由が必須
+- **制約**: ショートカットはユーザーが手動作成(アプリから配布不可)。名前は `nativeTimerShortcutName` と一致必須。同時に走る標準タイマーは 1 つ(既存を上書き)

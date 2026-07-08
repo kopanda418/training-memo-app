@@ -8,6 +8,8 @@ export type SettingKey =
   | 'quickExerciseTagIds' // string[]: 種目タグのクイックボタン(tag id、最大3)
   | 'wakeLockEnabled' // boolean: タイマー中の画面ロック防止(デフォルト true)
   | 'timerSound' // SoundId: タイマー終了音(デフォルト 'rising')
+  | 'nativeTimerEnabled' // boolean: iOS ショートカット経由で標準タイマーを起動(デフォルト false)
+  | 'nativeTimerShortcutName' // string: 呼び出すショートカット名(デフォルト '筋トレタイマー')
   | 'defaultUnit' // 'kg' | 'lbs': 新規セットの重量単位(デフォルト kg)
   | 'theme' // 'light' | 'dark' | 'system'(デフォルト dark)
   | 'defaultLocationId' // string: 記録初回入力時に自動付与する既定の場所(ホームジム。'' で無効)

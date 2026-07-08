@@ -1,6 +1,8 @@
 import { useEffect, useReducer, useState, useSyncExternalStore } from 'react'
 import { Modal } from '../../components/Modal'
 import { formatTimerSeconds } from '../../lib/timerFormat'
+import { DEFAULT_SHORTCUT_NAME, runNativeTimer } from './nativeTimer'
+import { useSetting } from '../../db/settings'
 import {
   closeTimerOverlay,
   extendTimer,
@@ -16,6 +18,8 @@ const PRESETS = [60, 90, 120, 180]
 /** インターバルタイマーのボトムシート(App 直下に常駐、タブバーの ⏱ から開く) */
 export function TimerOverlay() {
   const timer = useSyncExternalStore(subscribeTimer, getTimerState)
+  const nativeEnabled = useSetting<boolean>('nativeTimerEnabled') ?? false
+  const shortcutName = useSetting<string>('nativeTimerShortcutName') ?? DEFAULT_SHORTCUT_NAME
   const [customSec, setCustomSec] = useState('')
   // 残り時間表示の再描画用(動作中のみ 250ms ごと)
   const [, forceTick] = useReducer((x: number) => x + 1, 0)
@@ -29,6 +33,13 @@ export function TimerOverlay() {
 
   const remaining = remainingSeconds()
   const running = timer.endsAt !== null
+
+  // ネイティブ連携 ON なら iOS 時計アプリで開始(ロック中も鳴る)、OFF なら従来の Web Audio タイマー
+  const handleStart = (sec: number) => {
+    if (sec <= 0) return
+    if (nativeEnabled) runNativeTimer(sec, shortcutName)
+    else void startTimer(sec)
+  }
 
   return (
     <Modal open onClose={closeTimerOverlay} title="⏱ インターバルタイマー">
@@ -69,7 +80,7 @@ export function TimerOverlay() {
                 key={sec}
                 type="button"
                 className="rounded-xl bg-sky-600 py-4 text-base font-bold text-white active:bg-sky-700"
-                onClick={() => void startTimer(sec)}
+                onClick={() => handleStart(sec)}
               >
                 {formatTimerSeconds(sec)}
               </button>
@@ -89,21 +100,17 @@ export function TimerOverlay() {
               type="button"
               className="shrink-0 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"
               disabled={!(Number(customSec) > 0)}
-              onClick={() => void startTimer(Number(customSec))}
+              onClick={() => handleStart(Number(customSec))}
             >
               開始
             </button>
           </div>
-          {/* [Phase 0 実験] iPhone標準タイマー連携の挙動確認用。確認後に本実装へ差し替え・削除する */}
-          <button
-            type="button"
-            className="mt-1 rounded-lg border border-dashed border-amber-400 py-2.5 text-xs font-bold text-amber-600 active:bg-amber-50 dark:border-amber-500 dark:text-amber-400 dark:active:bg-amber-900/20"
-            onClick={() => {
-              window.location.href = 'shortcuts://run-shortcut?name=筋トレタイマー&input=90'
-            }}
-          >
-            🧪[実験] iPhoneタイマー90秒を起動
-          </button>
+          {nativeEnabled && (
+            <p className="text-[10px] text-slate-400">
+              iPhone
+              の時計アプリでタイマーを開始します(画面ロック中でも鳴ります)。設定でオフにできます
+            </p>
+          )}
         </div>
       )}
     </Modal>
