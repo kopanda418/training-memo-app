@@ -1,5 +1,6 @@
 import { showToast } from '../../components/Toast'
 import { getSetting } from '../../db/settings'
+import { runNativeTimer } from './nativeTimer'
 import { DEFAULT_SOUND, playSound, type SoundId } from './sounds'
 
 /**
@@ -106,6 +107,51 @@ document.addEventListener('visibilitychange', () => {
     })()
   }
 })
+
+// ---- 前回タイマー値(キーボード上の浮動ボタンのワンタップ起動に使う) ----
+
+const LAST_SEC_KEY = 'timer.lastSec'
+
+function loadLastSec(): number {
+  const n = Number(localStorage.getItem(LAST_SEC_KEY))
+  return Number.isFinite(n) && n > 0 ? n : 60
+}
+
+let lastTimerSec = loadLastSec()
+
+/** 直近に開始したタイマー秒数(浮動ボタンはこの値で即開始する) */
+export function getLastTimerSec(): number {
+  return lastTimerSec
+}
+
+function rememberLastSec(sec: number) {
+  lastTimerSec = sec
+  try {
+    localStorage.setItem(LAST_SEC_KEY, String(sec))
+  } catch {
+    // プライベートモード等で失敗してもメモリ内 lastTimerSec は保持されるので実害なし
+  }
+}
+
+/**
+ * タイマー開始の共通経路。ネイティブ連携 ON なら iOS 時計アプリへ委譲、OFF なら Web Audio タイマー。
+ * ネイティブ URL 遷移・AudioContext resume は「ユーザー操作起点で同期的に」行う必要があるため、
+ * 設定値は呼び出し側(コンポーネント)が useSetting で解決して渡す。開始秒数は前回値として記録する。
+ */
+export function beginInterval(
+  sec: number,
+  opts: { nativeEnabled: boolean; shortcutName: string },
+): void {
+  if (sec <= 0) return
+  rememberLastSec(sec)
+  if (opts.nativeEnabled) {
+    // 時計アプリへ遷移するので、復帰時に残らないようボトムシートは閉じておく
+    runNativeTimer(sec, opts.shortcutName)
+    closeTimerOverlay()
+  } else {
+    void startTimer(sec)
+  }
+}
 
 // ---- 公開アクション ----
 

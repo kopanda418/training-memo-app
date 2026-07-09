@@ -5,6 +5,7 @@ import { useMasters } from '../../db/hooks'
 import { listSetsByDate } from '../../db/repository'
 import { addDays, formatDateLabel, todayString } from '../../lib/date'
 import { groupSetsIntoBlocks, type SetBlock } from '../../lib/groupSets'
+import { KeyboardTimerButton } from '../timer/KeyboardTimerButton'
 import { ExerciseBlock } from './ExerciseBlock'
 import { ExercisePicker } from './ExercisePicker'
 import { LocationRow } from './LocationRow'
@@ -152,6 +153,9 @@ export function RecordPage() {
         <ExercisePicker open onClose={() => setPickerOpen(false)} onDone={handlePicked} />
       )}
       {templateOpen && <TemplateModal open date={date} onClose={() => setTemplateOpen(false)} />}
+
+      {/* 数字キーボードで隠れるタブバーの ⏱ を補う: キーボード直上に前回値ワンタップ起動ボタン */}
+      <KeyboardTimerButton />
     </div>
   )
 }

@@ -1,14 +1,14 @@
 import { useEffect, useReducer, useState, useSyncExternalStore } from 'react'
 import { Modal } from '../../components/Modal'
 import { formatTimerSeconds } from '../../lib/timerFormat'
-import { DEFAULT_SHORTCUT_NAME, runNativeTimer } from './nativeTimer'
+import { DEFAULT_SHORTCUT_NAME } from './nativeTimer'
 import { useSetting } from '../../db/settings'
 import {
+  beginInterval,
   closeTimerOverlay,
   extendTimer,
   getTimerState,
   remainingSeconds,
-  startTimer,
   stopTimer,
   subscribeTimer,
 } from './timerStore'
@@ -35,16 +35,7 @@ export function TimerOverlay() {
   const running = timer.endsAt !== null
 
   // ネイティブ連携 ON なら iOS 時計アプリで開始(ロック中も鳴る)、OFF なら従来の Web Audio タイマー
-  const handleStart = (sec: number) => {
-    if (sec <= 0) return
-    if (nativeEnabled) {
-      // 時計アプリへ遷移するので、復帰時に残らないようボトムシートは閉じておく
-      runNativeTimer(sec, shortcutName)
-      closeTimerOverlay()
-    } else {
-      void startTimer(sec)
-    }
-  }
+  const handleStart = (sec: number) => beginInterval(sec, { nativeEnabled, shortcutName })
 
   return (
     <Modal open onClose={closeTimerOverlay} title="⏱ インターバルタイマー">
