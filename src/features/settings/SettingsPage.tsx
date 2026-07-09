@@ -20,6 +20,7 @@ import { SOUND_OPTIONS, type SoundId } from '../timer/sounds'
 import { DEFAULT_SHORTCUT_NAME, PWA_URL } from '../timer/nativeTimer'
 import { previewSound } from '../timer/timerStore'
 import { AttributePicker } from '../record/AttributePicker'
+import { PlanImportModal } from './PlanImportModal'
 import { TagSelectModal } from './TagSelectModal'
 
 const slotBtnClass =
@@ -43,6 +44,7 @@ export function SettingsPage() {
   const [attrSlotOpen, setAttrSlotOpen] = useState<number | null>(null)
   const [tagSlotOpen, setTagSlotOpen] = useState<number | null>(null)
   const [locationPickerOpen, setLocationPickerOpen] = useState(false)
+  const [planImportOpen, setPlanImportOpen] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
   const [gapPx, setGapPx] = useState<number>(getBottomGapPx())
   const [nativeHelpOpen, setNativeHelpOpen] = useState(false)
@@ -445,6 +447,21 @@ export function SettingsPage() {
         />
       </section>
 
+      <section className="rounded-xl border border-sky-200 bg-sky-50 p-3 shadow-sm dark:border-sky-900 dark:bg-sky-950">
+        <h2 className="text-sm font-bold">プラン取り込み(追加のみ)</h2>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          既存の記録は変更・削除しません。まだ記録がない日付×種目×タグにだけ、外部で作成した
+          トレーニングプランのセットを追加します(上の「復元する」とは別の、非破壊的な取り込みです)
+        </p>
+        <button
+          type="button"
+          className="mt-2 w-full rounded-lg bg-sky-600 py-2.5 text-sm font-bold text-white active:bg-sky-700"
+          onClick={() => setPlanImportOpen(true)}
+        >
+          プランを取り込む
+        </button>
+      </section>
+
       <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-bold">タブバー位置の補正</h2>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
@@ -499,6 +516,7 @@ export function SettingsPage() {
           }}
         />
       )}
+      {planImportOpen && <PlanImportModal open onClose={() => setPlanImportOpen(false)} />}
       {tagSlotOpen !== null && (
         <TagSelectModal
           open
