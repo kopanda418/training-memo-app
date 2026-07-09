@@ -9,23 +9,23 @@ const KEYBOARD_THRESHOLD = 100
 
 /**
  * iOS の数字キーボードで下部タブバー(⏱)が隠れる問題への対策。
- * 入力欄フォーカス中はキーボードのすぐ上に浮くボタンを出し、ワンタップで
- * 前回のタイマー値のままインターバルを開始する(時間選択の工程を挟まない)。
- * 従来どおり時間を選びたい場合はキーボードを閉じてタブバーの ⏱ を使う。
+ * キーボード表示中はその直上に浮くボタンを出し、ワンタップで前回のタイマー値の
+ * まま即開始する(時間選択の工程を挟まない)。従来どおり時間を選びたい場合は
+ * キーボードを閉じてタブバーの ⏱ を使う。
+ *
+ * キーボード高さ = innerHeight - visualViewport.height。
+ * offsetTop(入力欄を見せるための自動スクロール量)は差し引かないこと:
+ * 差し引くとスクロール時に値が縮み、ボタンがキーボードの裏へ落ちて消える。
  */
 export function KeyboardTimerButton() {
   const nativeEnabled = useSetting<boolean>('nativeTimerEnabled') ?? false
   const shortcutName = useSetting<string>('nativeTimerShortcutName') ?? DEFAULT_SHORTCUT_NAME
-  const [inset, setInset] = useState(0) // キーボードの高さ(px)
-  const [editing, setEditing] = useState(false) // テキスト入力にフォーカス中か
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
 
-  // visualViewport の縮みからキーボード高さを算出(iOS でキーボード表示時に height が縮む)
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
-    const update = () => {
-      setInset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop))
-    }
+    const update = () => setKeyboardHeight(Math.max(0, window.innerHeight - vv.height))
     update()
     vv.addEventListener('resize', update)
     vv.addEventListener('scroll', update)
@@ -35,22 +35,7 @@ export function KeyboardTimerButton() {
     }
   }, [])
 
-  // 入力欄にフォーカスしている間だけ表示する
-  useEffect(() => {
-    const onFocusIn = (e: FocusEvent) => {
-      const t = e.target as HTMLElement | null
-      setEditing(!!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'))
-    }
-    const onFocusOut = () => setEditing(false)
-    document.addEventListener('focusin', onFocusIn)
-    document.addEventListener('focusout', onFocusOut)
-    return () => {
-      document.removeEventListener('focusin', onFocusIn)
-      document.removeEventListener('focusout', onFocusOut)
-    }
-  }, [])
-
-  if (!editing || inset <= KEYBOARD_THRESHOLD) return null
+  if (keyboardHeight <= KEYBOARD_THRESHOLD) return null
 
   const lastSec = getLastTimerSec()
 
@@ -59,7 +44,7 @@ export function KeyboardTimerButton() {
       type="button"
       // pointerdown で起動: 直後に入力欄が blur され値は確定コミットされる(preventDefault しない)
       onPointerDown={() => beginInterval(lastSec, { nativeEnabled, shortcutName })}
-      style={{ bottom: inset + 8 }}
+      style={{ bottom: keyboardHeight + 8 }}
       className="fixed right-3 z-40 flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg active:bg-emerald-700"
     >
       <span aria-hidden>⏱</span>
