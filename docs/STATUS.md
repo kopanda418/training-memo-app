@@ -4,15 +4,16 @@
 
 ## 現在地
 
-- **フェーズ**: 🎉 Ver 1.0.7 リリース済み(2026-07-08、iOS標準タイマー連携を任意追加)。ユーザー追加要望を随時対応中
+- **フェーズ**: 🎉 Ver 1.0.12 リリース済み(2026-07-09、記録画面キーボード対応+セット行スワイプ削除)。ユーザー追加要望を随時対応中
 - **作業中マイルストーン**: なし。以降はバックログ(roadmap.md)とユーザーフィードバックに基づく継続開発
 
 ## 次にやること
 
-1. **#1 暗転バグ・#8 タグ消失の実機観察**: v1.0.3 の対策後も暗転/タグ消失が起きるか確認する。続く場合は `docs/investigation-tag-loss.md` の仮説B対応(書き込みエラーの可視化)へ
-2. 移行データ(`input/training-memo-backup-migrated.json`)を設定画面のインポートで取り込む — ユーザー側の手作業
-3. 次のフィードバックまたはバックログ着手(roadmap.md の「Ver 1.0 以降のバックログ」参照)
-4. デプロイは main push で自動。配信確認は `gh run watch <id>` + 配信 HTML のバンドル名一致(HEAD から `npm run build` し直してハッシュ比較)
+1. **セット行スワイプ削除の実機フィット感確認**(v1.0.12): 閾値(140px)が強すぎ/弱すぎないか実機で確認してもらう。要調整なら `src/components/SwipeToDelete.tsx` の `DELETE_THRESHOLD` を変更
+2. **#1 暗転バグ・#8 タグ消失の実機観察**: v1.0.3 の対策後も暗転/タグ消失が起きるか確認する。続く場合は `docs/investigation-tag-loss.md` の仮説B対応(書き込みエラーの可視化)へ
+3. 移行データ(`input/training-memo-backup-migrated.json`)を設定画面のインポートで取り込む — ユーザー側の手作業
+4. 次のフィードバックまたはバックログ着手(roadmap.md の「Ver 1.0 以降のバックログ」参照)
+5. デプロイは main push で自動。配信確認は `gh run watch <id>` + 配信 HTML のバンドル名一致(HEAD から `npm run build` し直してハッシュ比較)
 
 ## 申し送り・注意点
 
@@ -41,6 +42,8 @@
 - **v1.0.4 で推定 1RM 換算式を変更**: Epley(`/30`) → **O'Conner(`/40`)**。100kg×10rep で 133.3→125.0 kg と保守的になった。ADR-007 更新済み
 - **v1.0.5 でグラフのタグフィルタを刷新**: 従来の単一選択から「**タグを含める(複数選択)**」と「**タグを除外(複数選択)**」の 2 モード制に変更。`GraphView.tsx` の `filterMode: 'include' | 'exclude'` + `selectedTagIds: ReadonlySet<string>` で管理。含む=sky-600、除外=rose-500 でチップ色を色分け。モード切替・種目変更時にリセット
 - **v1.0.7 で iOS 標準タイマー連携(任意)を追加**(ADR-009): 設定 `nativeTimerEnabled`(既定 OFF)/ `nativeTimerShortcutName`(既定「筋トレタイマー」)。ON 時は `TimerOverlay` の開始が `features/timer/nativeTimer.ts` の `runNativeTimer` を呼び `shortcuts://run-shortcut?name=<名>&input=<秒>` を開く(Web Audio/Wake Lock は動かさずネイティブ委譲)。**画面ロック中も鳴る**のが利点。ユーザーが同名ショートカット(入力秒でタイマー開始、末尾に PWA URL を開けば自動復帰)を手動作成する必要あり。実機で standalone 起動・ダイアログなし・ロック鳴動・自動復帰まで確認済み
+- **v1.0.9〜v1.0.10 で記録画面キーボード対応**: 数字キーボード表示中は下部タブバーの ⏱ が隠れて 1 タップ余計にかかる問題への対策。`features/timer/timerStore.ts` にタイマー開始の共通関数 `beginInterval(sec, {nativeEnabled, shortcutName})` を新設(前回秒数を `localStorage`(`timer.lastSec`、既定 60 秒)に記録、ネイティブ/Web Audio の分岐もここに集約)。`features/timer/KeyboardTimerButton.tsx` が `visualViewport` からキーボード高さを算出しキーボード直上に「⏱ 休憩 m:ss」を浮かせ、ワンタップで前回値のまま開始する(`RecordPage.tsx` にのみ配置)。**ハマった点**: 高さ算出に `visualViewport.offsetTop` を含めると、iOS が入力欄を見せるためページを自動スクロールした際に値が縮み、ボタンが一瞬で消える。**`offsetTop` は使わず `innerHeight - visualViewport.height` のみで算出すること**
+- **v1.0.11〜v1.0.12 でセット行を左スワイプ削除化**: 常設 ✕ 削除ボタンを廃止し `components/SwipeToDelete.tsx`(汎用ラッパー、ポインタイベント実装)に置き換え。軽いスワイプ(`OPEN_WIDTH`=72px 超)は削除ボタンが表出したままタップで確定、大きいスワイプ(`DELETE_THRESHOLD`=140px 超)は指を離した瞬間に即削除(1 アクション)。並び替えドラッグハンドル(セット番号)は `[data-drag-handle]` 属性でスワイプ判定から除外し干渉を回避。あわせて自重トグルを W の右隣へ移動(ラベル「自重」→「自」)、RPE・実績レップ数・メモに値がある時だけ出る個別 ✕ クリアボタンを追加(`SetRow.tsx`)。**ロールバック用に `checkpoint-before-setrow-swipe` タグを commit `023f61c` に作成済み**(残置している。不要になったら削除してよい)
 
 ## セッション履歴
 
@@ -65,3 +68,4 @@
 | 2026-07-07 | v1.0.3: 追加仕様8項目対応。#4 MAX最近更新順(デフォルト化)、#7 MAX日付→記録遷移、#6 履歴カレンダー月/年ジャンプ、#2 種目名タップで種目変更(changeBlockExercise)、#3 ホームジム(既定location自動付与)、#5 記録日付→履歴遷移、#1 暗転対策(ErrorBoundary+ヘッダー不透過化)。#8 タグ消失は調査のみ(investigation-tag-loss.md)。テスト57件。デプロイ完了(index-BPqMgeeA.js) |
 | 2026-07-07 | v1.0.4: 推定1RM計算式をEpley→O'Conner(reps/40)へ変更。ADR-007更新。v1.0.5: グラフのタグフィルタを複数選択対応+除外モード追加。含める/除外の2モードをセグメントコントロールで切替。デプロイ完了(index-BuEq2ake.js)                                                                                                                                                     |
 | 2026-07-08 | v1.0.6(Phase 0 実機実験)→ v1.0.7: iOS標準タイマー連携を任意オプションで実装(ADR-009)。設定でON/OFF+ショートカット名。ON時は`shortcuts://`でネイティブ時計タイマー起動=画面ロック中も鳴る。実機で挙動確認済み(遷移・ダイアログなし・ロック鳴動・PWA自動復帰)。テスト57件                                                                                               |
+| 2026-07-09 | v1.0.9〜v1.0.10: 記録画面でキーボード表示中に隠れるタブバー⏱の代替として、キーボード直上に前回値ワンタップ起動ボタンを追加(`KeyboardTimerButton`)。visualViewport の offsetTop 起因で一瞬消える不具合を実機報告から特定・修正。v1.0.11〜v1.0.12: セット行の常設✕削除ボタンを廃止し左スワイプ削除に変更(`SwipeToDelete` 汎用コンポーネント新設)。軽いスワイプ=タップ確定、大きいスワイプ(140px超)=離した瞬間に即削除の1アクション化。自重トグルをW横へ移動・RPE/実績/メモに個別クリアボタン追加。ロールバック用チェックポイントタグ `checkpoint-before-setrow-swipe` を作成。Edge(Playwright)でスワイプ操作を含め実機相当の動作確認を実施、コンソールエラーなし。テスト57件 |
