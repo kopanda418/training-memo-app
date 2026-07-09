@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { CommitInput } from '../../components/CommitInput'
+import { SwipeToDelete } from '../../components/SwipeToDelete'
 import { showToast } from '../../components/Toast'
 import { deleteSet, detectMaxUpdate, toggleSetAttribute, updateSet } from '../../db/repository'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, useSetting } from '../../db/settings'
@@ -47,6 +48,21 @@ function CopyBtn({
   )
 }
 
+/** 項目を 1 つだけ消す ✕ ボタン(値が入っている時だけ表示する呼び出し想定) */
+function ClearBtn({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className="shrink-0 px-0.5 text-xs leading-none text-slate-300 active:text-red-500 dark:text-slate-600"
+      onClick={onClick}
+    >
+      ✕
+    </button>
+  )
+}
+
 const numBoxClass =
   'rounded-md border border-slate-200 bg-transparent px-1 py-1.5 text-center dark:border-slate-700'
 
@@ -87,168 +103,189 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
   return (
     <div
       ref={setNodeRef}
-      className={`py-1.5 ${set.isWarmup && !isDragging ? 'opacity-55' : ''} ${
-        isDragging ? 'relative z-10 rounded-lg bg-slate-100 opacity-90 dark:bg-slate-800' : ''
-      }`}
+      className={isDragging ? 'relative z-10 opacity-90' : ''}
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
-      <div className="flex items-center gap-1">
-        <span
-          {...attributes}
-          {...listeners}
-          role="button"
-          aria-label="長押しして並び替え"
-          className="w-4 shrink-0 cursor-grab text-center text-xs text-slate-400"
-          style={{ touchAction: 'none' }}
-        >
-          {index + 1}
-        </span>
-        <CopyBtn
-          label="前セットの重量をコピー"
-          disabled={!prevSet}
-          onClick={() =>
-            prevSet &&
-            void updateSet(set.id, {
-              weight: prevSet.weight,
-              isBodyweight: prevSet.isBodyweight,
-            })
-          }
-        />
-        {set.isBodyweight && (
-          <span className="shrink-0 text-[10px] font-bold text-emerald-500">自重+</span>
-        )}
-        <CommitInput
-          inputMode="decimal"
-          className={`${set.isBodyweight ? 'w-10' : 'w-14'} text-right text-base font-bold ${numBoxClass}`}
-          value={String(set.weight)}
-          onCommit={(t) => {
-            const n = parseNum(t)
-            if (n !== undefined) void commitAndCheckMax({ weight: n })
-          }}
-        />
-        <span className="shrink-0 text-xs text-slate-400">{set.unit}</span>
-        <button
-          type="button"
-          className={`shrink-0 rounded-md border px-1 py-1 text-[10px] leading-none ${
-            set.isBodyweight
-              ? 'border-emerald-500 font-bold text-emerald-500'
-              : 'border-slate-300 text-slate-500 active:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:active:bg-slate-700'
-          }`}
-          onClick={toggleBodyweight}
-        >
-          自重
-        </button>
-        <CopyBtn
-          label="前セットの RPE・レップ数をコピー"
-          disabled={!prevSet}
-          onClick={() =>
-            prevSet && void updateSet(set.id, { rpe: prevSet.rpe, reps: prevSet.reps })
-          }
-        />
-        <span className="shrink-0 text-[10px] text-slate-400">RPE</span>
-        <CommitInput
-          inputMode="decimal"
-          className={`w-9 text-sm text-slate-500 dark:text-slate-400 ${numBoxClass}`}
-          value={set.rpe != null ? String(set.rpe) : ''}
-          placeholder="-"
-          onCommit={(t) => {
-            const n = parseNum(t)
-            void updateSet(set.id, { rpe: n })
-          }}
-        />
-        <span className="shrink-0 text-xs text-slate-400">/</span>
-        <CommitInput
-          inputMode="numeric"
-          className={`w-9 text-base font-bold ${numBoxClass}`}
-          value={set.reps > 0 ? String(set.reps) : ''}
-          placeholder="-"
-          onCommit={(t) => {
-            // 空欄 = 未実施(0 として保存し、表示は空欄・1RM 非表示)
-            if (t.trim() === '') {
-              void updateSet(set.id, { reps: 0 })
-              return
-            }
-            const n = parseNum(t)
-            if (n !== undefined) void commitAndCheckMax({ reps: Math.round(n) })
-          }}
-        />
-        <span className="shrink-0 text-xs text-slate-400">回</span>
-        <button
-          type="button"
-          aria-label="セットを削除"
-          className="ml-auto shrink-0 px-1 text-slate-300 active:text-red-500 dark:text-slate-600"
-          onClick={() => void deleteSet(set.id)}
-        >
-          ✕
-        </button>
-      </div>
-      {/* メモ行(全幅で見やすく)と属性+1RM 行は分ける */}
-      <div className="mt-0.5 flex items-center gap-1 pl-5">
-        <CopyBtn
-          label="前セットのコメントをコピー"
-          disabled={!prevSet?.memo}
-          onClick={() => prevSet?.memo && void updateSet(set.id, { memo: prevSet.memo })}
-        />
-        <CommitInput
-          className="min-w-0 flex-1 border-b border-slate-100 bg-transparent px-1 py-0.5 text-xs dark:border-slate-700/60"
-          value={set.memo ?? ''}
-          placeholder="メモ"
-          onCommit={(t) => void updateSet(set.id, { memo: t.trim() || undefined })}
-        />
-      </div>
-      <div className="mt-1 flex items-center gap-1 pl-5">
-        <button
-          type="button"
-          title="ウォームアップ(週間集計・MAX 判定から除外)"
-          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-            set.isWarmup
-              ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/60 dark:text-orange-300'
-              : 'border border-slate-200 text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700'
-          }`}
-          onClick={() => void updateSet(set.id, { isWarmup: !set.isWarmup || undefined })}
-        >
-          W
-        </button>
-        <div className="flex flex-wrap items-center gap-1">
-          {/* 付いている属性: タップで外す */}
-          {attrs.map((a) => (
-            <button
-              key={a}
-              type="button"
-              className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700 active:bg-sky-200 dark:bg-sky-900 dark:text-sky-300"
-              onClick={() => void toggleSetAttribute(set.id, a)}
+      <SwipeToDelete
+        onDelete={() => void deleteSet(set.id)}
+        deleteLabel="削除"
+        wrapperClassName={isDragging ? 'rounded-lg' : ''}
+        contentClassName={
+          isDragging ? 'bg-slate-100 dark:bg-slate-800' : 'bg-white dark:bg-slate-900'
+        }
+      >
+        <div className={`py-1.5 ${set.isWarmup && !isDragging ? 'opacity-55' : ''}`}>
+          <div className="flex items-center gap-1">
+            <span
+              {...attributes}
+              {...listeners}
+              data-drag-handle="true"
+              role="button"
+              aria-label="長押しして並び替え"
+              className="w-4 shrink-0 cursor-grab text-center text-xs text-slate-400"
+              style={{ touchAction: 'none' }}
             >
-              {a} ✕
+              {index + 1}
+            </span>
+            <CopyBtn
+              label="前セットの重量をコピー"
+              disabled={!prevSet}
+              onClick={() =>
+                prevSet &&
+                void updateSet(set.id, {
+                  weight: prevSet.weight,
+                  isBodyweight: prevSet.isBodyweight,
+                })
+              }
+            />
+            {set.isBodyweight && (
+              <span className="shrink-0 text-[10px] font-bold text-emerald-500">自重+</span>
+            )}
+            <CommitInput
+              inputMode="decimal"
+              className={`${set.isBodyweight ? 'w-10' : 'w-14'} text-right text-base font-bold ${numBoxClass}`}
+              value={String(set.weight)}
+              onCommit={(t) => {
+                const n = parseNum(t)
+                if (n !== undefined) void commitAndCheckMax({ weight: n })
+              }}
+            />
+            <span className="shrink-0 text-xs text-slate-400">{set.unit}</span>
+            <CopyBtn
+              label="前セットの RPE・レップ数をコピー"
+              disabled={!prevSet}
+              onClick={() =>
+                prevSet && void updateSet(set.id, { rpe: prevSet.rpe, reps: prevSet.reps })
+              }
+            />
+            <span className="shrink-0 text-[10px] text-slate-400">RPE</span>
+            <CommitInput
+              inputMode="decimal"
+              className={`w-9 text-sm text-slate-500 dark:text-slate-400 ${numBoxClass}`}
+              value={set.rpe != null ? String(set.rpe) : ''}
+              placeholder="-"
+              onCommit={(t) => {
+                const n = parseNum(t)
+                void updateSet(set.id, { rpe: n })
+              }}
+            />
+            {set.rpe != null && (
+              <ClearBtn
+                label="RPE を削除"
+                onClick={() => void updateSet(set.id, { rpe: undefined })}
+              />
+            )}
+            <span className="shrink-0 text-xs text-slate-400">/</span>
+            <CommitInput
+              inputMode="numeric"
+              className={`w-9 text-base font-bold ${numBoxClass}`}
+              value={set.reps > 0 ? String(set.reps) : ''}
+              placeholder="-"
+              onCommit={(t) => {
+                // 空欄 = 未実施(0 として保存し、表示は空欄・1RM 非表示)
+                if (t.trim() === '') {
+                  void updateSet(set.id, { reps: 0 })
+                  return
+                }
+                const n = parseNum(t)
+                if (n !== undefined) void commitAndCheckMax({ reps: Math.round(n) })
+              }}
+            />
+            {set.reps > 0 && (
+              <ClearBtn
+                label="実績レップ数を削除"
+                onClick={() => void updateSet(set.id, { reps: 0 })}
+              />
+            )}
+            <span className="shrink-0 text-xs text-slate-400">回</span>
+          </div>
+          {/* メモ行(全幅で見やすく)と属性+1RM 行は分ける */}
+          <div className="mt-0.5 flex items-center gap-1 pl-5">
+            <CopyBtn
+              label="前セットのコメントをコピー"
+              disabled={!prevSet?.memo}
+              onClick={() => prevSet?.memo && void updateSet(set.id, { memo: prevSet.memo })}
+            />
+            <CommitInput
+              className="min-w-0 flex-1 border-b border-slate-100 bg-transparent px-1 py-0.5 text-xs dark:border-slate-700/60"
+              value={set.memo ?? ''}
+              placeholder="メモ"
+              onCommit={(t) => void updateSet(set.id, { memo: t.trim() || undefined })}
+            />
+            {set.memo && (
+              <ClearBtn
+                label="メモを削除"
+                onClick={() => void updateSet(set.id, { memo: undefined })}
+              />
+            )}
+          </div>
+          <div className="mt-1 flex items-center gap-1 pl-5">
+            <button
+              type="button"
+              title="ウォームアップ(週間集計・MAX 判定から除外)"
+              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                set.isWarmup
+                  ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/60 dark:text-orange-300'
+                  : 'border border-slate-200 text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700'
+              }`}
+              onClick={() => void updateSet(set.id, { isWarmup: !set.isWarmup || undefined })}
+            >
+              W
             </button>
-          ))}
-          {/* 未付与のクイック属性: タップで付ける */}
-          {quickAttrs
-            .filter((q) => !attrs.includes(q))
-            .map((q) => (
+            <button
+              type="button"
+              title="自重(加重分を体重に上乗せして 1RM 換算)"
+              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                set.isBodyweight
+                  ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-300'
+                  : 'border border-slate-200 text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700'
+              }`}
+              onClick={toggleBodyweight}
+            >
+              自
+            </button>
+            <div className="flex flex-wrap items-center gap-1">
+              {/* 付いている属性: タップで外す */}
+              {attrs.map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700 active:bg-sky-200 dark:bg-sky-900 dark:text-sky-300"
+                  onClick={() => void toggleSetAttribute(set.id, a)}
+                >
+                  {a} ✕
+                </button>
+              ))}
+              {/* 未付与のクイック属性: タップで付ける */}
+              {quickAttrs
+                .filter((q) => !attrs.includes(q))
+                .map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    className="rounded-full border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700"
+                    onClick={() => void toggleSetAttribute(set.id, q)}
+                  >
+                    {q}
+                  </button>
+                ))}
               <button
-                key={q}
                 type="button"
+                aria-label="属性を選択"
                 className="rounded-full border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700"
-                onClick={() => void toggleSetAttribute(set.id, q)}
+                onClick={() => setAttrPickerOpen(true)}
               >
-                {q}
+                ＋属性
               </button>
-            ))}
-          <button
-            type="button"
-            aria-label="属性を選択"
-            className="rounded-full border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700"
-            onClick={() => setAttrPickerOpen(true)}
-          >
-            ＋属性
-          </button>
+            </div>
+            {oneRm > 0 && (
+              <span className="ml-auto shrink-0 text-[10px] text-slate-400">
+                1RM {Math.round(oneRm * 10) / 10}kg
+              </span>
+            )}
+          </div>
         </div>
-        {oneRm > 0 && (
-          <span className="ml-auto shrink-0 text-[10px] text-slate-400">
-            1RM {Math.round(oneRm * 10) / 10}kg
-          </span>
-        )}
-      </div>
+      </SwipeToDelete>
       {attrPickerOpen && (
         <AttributePicker
           open
