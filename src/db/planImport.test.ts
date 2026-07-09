@@ -56,6 +56,22 @@ describe('applyPlanImport', () => {
     expect(sets[0].memo).toBe('目標 5reps')
   })
 
+  it('デフォルトにない部位を指定した新規種目は、部位マスタも自動作成される(未登録だと種目選択タブに出ず選べなくなるため)', async () => {
+    const file = planFile([
+      {
+        date: '2026-07-14',
+        items: [{ exercise: 'プランク改', bodyPart: '体幹', sets: [{ weight: 0 }] }],
+      },
+    ])
+    const result = await applyPlanImport(file)
+    expect(result.createBodyParts).toEqual(['体幹'])
+
+    const bodyPart = await db.bodyParts.where('name').equals('体幹').first()
+    expect(bodyPart).toBeDefined()
+    const exercise = await db.exercises.where('name').equals('プランク改').first()
+    expect(exercise?.bodyPart).toBe('体幹')
+  })
+
   it('同じファイルを2回取り込んでも重複しない(冪等)', async () => {
     const file = planFile([
       {

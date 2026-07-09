@@ -13,15 +13,17 @@ export { validatePlanImportFile } from '../lib/planImport'
 export type { PlanImportFile } from '../lib/planImport'
 
 async function loadExistingPlanData(): Promise<ExistingPlanData> {
-  const [exercises, tags, days, sets] = await Promise.all([
+  const [exercises, tags, bodyParts, days, sets] = await Promise.all([
     db.exercises.toArray(),
     db.tags.toArray(),
+    db.bodyParts.toArray(),
     db.days.toArray(),
     db.sets.toArray(),
   ])
   return {
     exercises: exercises.map((e) => ({ id: e.id, name: e.name })),
     tags: tags.map((t) => ({ id: t.id, name: t.name })),
+    bodyPartNames: new Set(bodyParts.map((p) => p.name)),
     dayDates: new Set(days.map((d) => d.date)),
     setKeys: new Set(sets.map((s) => setKeyOf(s.date, s.exerciseId, s.tagId))),
   }
@@ -55,82 +57,97 @@ async function resolveOrCreateLocationId(name: string): Promise<string> {
  */
 export async function applyPlanImport(file: PlanImportFile): Promise<PlanActions> {
   const unit = (await getSetting<WeightUnit>('defaultUnit')) || 'kg'
-  return db.transaction('rw', [db.exercises, db.tags, db.days, db.sets, db.locations], async () => {
-    const [exercises, tags] = await Promise.all([db.exercises.toArray(), db.tags.toArray()])
-    const actions = computePlanActions(file, await loadExistingPlanData())
+  return db.transaction(
+    'rw',
+    [db.exercises, db.tags, db.bodyParts, db.days, db.sets, db.locations],
+    async () => {
+      const [exercises, tags, bodyParts] = await Promise.all([
+        db.exercises.toArray(),
+        db.tags.toArray(),
+        db.bodyParts.toArray(),
+      ])
+      const actions = computePlanActions(file, await loadExistingPlanData())
 
-    const exerciseIdByName = new Map(exercises.map((e) => [e.name, e.id]))
-    let exerciseSortOrder = exercises.length
-      ? Math.max(...exercises.map((e) => e.sortOrder)) + 1
-      : 0
-    for (const e of actions.createExercises) {
-      const id = crypto.randomUUID()
-      await db.exercises.add({
-        id,
-        name: e.name,
-        bodyPart: e.bodyPart,
-        sortOrder: exerciseSortOrder++,
-        isArchived: false,
-        createdAt: Date.now(),
-      })
-      exerciseIdByName.set(e.name, id)
-    }
-
-    const tagIdByName = new Map(tags.map((t) => [t.name, t.id]))
-    let tagSortOrder = tags.length ? Math.max(...tags.map((t) => t.sortOrder)) + 1 : 0
-    for (const t of actions.createTags) {
-      const id = crypto.randomUUID()
-      await db.tags.add({
-        id,
-        name: t.name,
-        sortOrder: tagSortOrder++,
-        isArchived: false,
-        createdAt: Date.now(),
-      })
-      tagIdByName.set(t.name, id)
-    }
-
-    for (const d of actions.newDays) {
-      const locationId = d.location ? await resolveOrCreateLocationId(d.location) : undefined
-      await db.days.add({ date: d.date, locationId })
-    }
-
-    const orderCounters = new Map<string, number>()
-    const nextOrder = async (date: string) => {
-      let order = orderCounters.get(date)
-      if (order === undefined) {
-        const daySets = await db.sets.where('date').equals(date).toArray()
-        order = daySets.length ? Math.max(...daySets.map((s) => s.orderInDay)) + 1 : 0
+      let bodyPartSortOrder = bodyParts.length
+        ? Math.max(...bodyParts.map((p) => p.sortOrder)) + 1
+        : 0
+      for (const name of actions.createBodyParts) {
+        await db.bodyParts.add({ id: crypto.randomUUID(), name, sortOrder: bodyPartSortOrder++ })
       }
-      orderCounters.set(date, order + 1)
-      return order
-    }
 
-    const now = Date.now()
-    for (const block of actions.addBlocks) {
-      const exerciseId = exerciseIdByName.get(block.exerciseName)
-      const tagId = block.tagName ? tagIdByName.get(block.tagName) : NO_TAG
-      if (!exerciseId || tagId === undefined) continue
-      const newSets: WorkoutSet[] = []
-      for (const s of block.sets) {
-        newSets.push({
-          id: crypto.randomUUID(),
-          date: block.date,
-          exerciseId,
-          tagId,
-          weight: s.weight,
-          isBodyweight: s.isBodyweight,
-          reps: s.reps ?? 0,
-          unit: s.unit ?? unit,
-          memo: s.memo,
-          isAssisted: false,
-          orderInDay: await nextOrder(block.date),
-          createdAt: now,
+      const exerciseIdByName = new Map(exercises.map((e) => [e.name, e.id]))
+      let exerciseSortOrder = exercises.length
+        ? Math.max(...exercises.map((e) => e.sortOrder)) + 1
+        : 0
+      for (const e of actions.createExercises) {
+        const id = crypto.randomUUID()
+        await db.exercises.add({
+          id,
+          name: e.name,
+          bodyPart: e.bodyPart,
+          sortOrder: exerciseSortOrder++,
+          isArchived: false,
+          createdAt: Date.now(),
         })
+        exerciseIdByName.set(e.name, id)
       }
-      await db.sets.bulkAdd(newSets)
-    }
 
-    return actions
-  })
+      const tagIdByName = new Map(tags.map((t) => [t.name, t.id]))
+      let tagSortOrder = tags.length ? Math.max(...tags.map((t) => t.sortOrder)) + 1 : 0
+      for (const t of actions.createTags) {
+        const id = crypto.randomUUID()
+        await db.tags.add({
+          id,
+          name: t.name,
+          sortOrder: tagSortOrder++,
+          isArchived: false,
+          createdAt: Date.now(),
+        })
+        tagIdByName.set(t.name, id)
+      }
+
+      for (const d of actions.newDays) {
+        const locationId = d.location ? await resolveOrCreateLocationId(d.location) : undefined
+        await db.days.add({ date: d.date, locationId })
+      }
+
+      const orderCounters = new Map<string, number>()
+      const nextOrder = async (date: string) => {
+        let order = orderCounters.get(date)
+        if (order === undefined) {
+          const daySets = await db.sets.where('date').equals(date).toArray()
+          order = daySets.length ? Math.max(...daySets.map((s) => s.orderInDay)) + 1 : 0
+        }
+        orderCounters.set(date, order + 1)
+        return order
+      }
+
+      const now = Date.now()
+      for (const block of actions.addBlocks) {
+        const exerciseId = exerciseIdByName.get(block.exerciseName)
+        const tagId = block.tagName ? tagIdByName.get(block.tagName) : NO_TAG
+        if (!exerciseId || tagId === undefined) continue
+        const newSets: WorkoutSet[] = []
+        for (const s of block.sets) {
+          newSets.push({
+            id: crypto.randomUUID(),
+            date: block.date,
+            exerciseId,
+            tagId,
+            weight: s.weight,
+            isBodyweight: s.isBodyweight,
+            reps: s.reps ?? 0,
+            unit: s.unit ?? unit,
+            memo: s.memo,
+            isAssisted: false,
+            orderInDay: await nextOrder(block.date),
+            createdAt: now,
+          })
+        }
+        await db.sets.bulkAdd(newSets)
+      }
+
+      return actions
+    },
+  )
 }

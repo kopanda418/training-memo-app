@@ -18,6 +18,7 @@ const baseFile = (days: PlanImportFile['days']): PlanImportFile => ({
 const emptyExisting = (): ExistingPlanData => ({
   exercises: [],
   tags: [],
+  bodyPartNames: new Set(),
   dayDates: new Set(),
   setKeys: new Set(),
 })
@@ -102,6 +103,7 @@ describe('computePlanActions', () => {
     const existing: ExistingPlanData = {
       exercises: [{ id: 'ex-1', name: 'ベンチプレス' }],
       tags: [{ id: 'tag-1', name: '高重量' }],
+      bodyPartNames: new Set(['胸']),
       dayDates: new Set(['2026-07-14']),
       setKeys: new Set(),
     }
@@ -122,6 +124,7 @@ describe('computePlanActions', () => {
     const existing: ExistingPlanData = {
       exercises: [{ id: 'ex-1', name: 'ベンチプレス' }],
       tags: [],
+      bodyPartNames: new Set(['胸']),
       dayDates: new Set(['2026-07-14']),
       setKeys: new Set([setKeyOf('2026-07-14', 'ex-1', NO_TAG)]),
     }
@@ -139,6 +142,7 @@ describe('computePlanActions', () => {
     const existing: ExistingPlanData = {
       exercises: [],
       tags: [],
+      bodyPartNames: new Set(),
       dayDates: new Set(),
       setKeys: new Set(),
     }
@@ -151,6 +155,50 @@ describe('computePlanActions', () => {
     const actions = computePlanActions(file, existing)
     expect(actions.skipBlocks).toEqual([])
     expect(actions.addBlocks).toHaveLength(1)
+  })
+
+  it('creates a new bodyPart when a new exercise uses one not in the master', () => {
+    const file = baseFile([
+      {
+        date: '2026-07-14',
+        items: [{ exercise: '新種目', bodyPart: '体幹', sets: [{ weight: 10 }] }],
+      },
+    ])
+    const actions = computePlanActions(file, emptyExisting())
+    expect(actions.createBodyParts).toEqual(['体幹'])
+  })
+
+  it('does not recreate a bodyPart that already exists in the master', () => {
+    const existing: ExistingPlanData = {
+      exercises: [],
+      tags: [],
+      bodyPartNames: new Set(['腕']),
+      dayDates: new Set(),
+      setKeys: new Set(),
+    }
+    const file = baseFile([
+      {
+        date: '2026-07-14',
+        items: [{ exercise: '新種目', bodyPart: '腕', sets: [{ weight: 10 }] }],
+      },
+    ])
+    const actions = computePlanActions(file, existing)
+    expect(actions.createBodyParts).toEqual([])
+  })
+
+  it('deduplicates a new bodyPart referenced by multiple new exercises', () => {
+    const file = baseFile([
+      {
+        date: '2026-07-14',
+        items: [
+          { exercise: 'プランク', bodyPart: '体幹', sets: [{ weight: 0 }] },
+          { exercise: 'デッドバグ', bodyPart: '体幹', sets: [{ weight: 0 }] },
+        ],
+      },
+    ])
+    const actions = computePlanActions(file, emptyExisting())
+    expect(actions.createBodyParts).toEqual(['体幹'])
+    expect(actions.createExercises).toHaveLength(2)
   })
 
   it('only lists a day once as newDays even if referenced by multiple items across the file', () => {

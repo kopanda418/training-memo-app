@@ -98,8 +98,13 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
               </div>
             )}
 
-            {(preview.createExercises.length > 0 || preview.createTags.length > 0) && (
+            {(preview.createBodyParts.length > 0 ||
+              preview.createExercises.length > 0 ||
+              preview.createTags.length > 0) && (
               <div className="text-xs text-slate-500 dark:text-slate-400">
+                {preview.createBodyParts.length > 0 && (
+                  <p>新規部位: {preview.createBodyParts.join(' / ')}</p>
+                )}
                 {preview.createExercises.length > 0 && (
                   <p>新規種目: {preview.createExercises.map((e) => e.name).join(' / ')}</p>
                 )}

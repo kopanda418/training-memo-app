@@ -80,6 +80,8 @@ export function validatePlanImportFile(value: unknown): PlanImportFile {
 export interface ExistingPlanData {
   exercises: { id: string; name: string }[]
   tags: { id: string; name: string }[]
+  /** 既存の部位マスタの name 集合(新規種目の bodyPart 自動作成判定用) */
+  bodyPartNames: ReadonlySet<string>
   /** 既に days レコードがある日付 */
   dayDates: ReadonlySet<string>
   /** 既存セットの `date|exerciseId|tagId` キー集合(スキップ判定用) */
@@ -98,6 +100,7 @@ export interface PlanBlock {
 }
 
 export interface PlanActions {
+  createBodyParts: string[]
   createExercises: { name: string; bodyPart: string }[]
   createTags: { name: string }[]
   /** 新規に作成する日(location はその日のみ適用) */
@@ -116,6 +119,7 @@ export interface PlanActions {
  */
 export function computePlanActions(file: PlanImportFile, existing: ExistingPlanData): PlanActions {
   const actions: PlanActions = {
+    createBodyParts: [],
     createExercises: [],
     createTags: [],
     newDays: [],
@@ -128,6 +132,7 @@ export function computePlanActions(file: PlanImportFile, existing: ExistingPlanD
   const tagByName = new Map(existing.tags.map((t) => [t.name, t]))
   const pendingExerciseNames = new Set<string>()
   const pendingTagNames = new Set<string>()
+  const pendingBodyPartNames = new Set<string>()
   const newDayDates = new Set<string>()
 
   for (const day of file.days) {
@@ -150,6 +155,10 @@ export function computePlanActions(file: PlanImportFile, existing: ExistingPlanD
         }
         actions.createExercises.push({ name: exerciseName, bodyPart })
         pendingExerciseNames.add(exerciseName)
+        if (!existing.bodyPartNames.has(bodyPart) && !pendingBodyPartNames.has(bodyPart)) {
+          actions.createBodyParts.push(bodyPart)
+          pendingBodyPartNames.add(bodyPart)
+        }
       }
       // 既に新規作成予定(pending)の種目名はそのまま続行(2件目以降は bodyPart 未指定でもエラーにしない)
 
