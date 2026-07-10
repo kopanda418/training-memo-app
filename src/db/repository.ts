@@ -3,7 +3,14 @@ import { estimateOneRepMax } from '../lib/oneRepMax'
 import { effectiveLoad } from '../lib/setFormat'
 import { db } from './db'
 import { getSetting, setSetting } from './settings'
-import { NO_TAG, type Day, type Tag, type WeightUnit, type WorkoutSet } from './types'
+import {
+  NO_TAG,
+  type BlockNote,
+  type Day,
+  type Tag,
+  type WeightUnit,
+  type WorkoutSet,
+} from './types'
 
 /**
  * 既定の場所(ホームジム)の id を解決する。未設定・削除済みなら undefined。
@@ -86,7 +93,18 @@ export async function updateSet(
 }
 
 export async function deleteSet(id: string): Promise<void> {
-  await db.sets.delete(id)
+  await db.transaction('rw', [db.sets, db.blockNotes], async () => {
+    const set = await db.sets.get(id)
+    await db.sets.delete(id)
+    if (!set) return
+    // このブロック(その日のその種目×タグ)が空になったら孤児メモを消す
+    const remaining = await db.sets
+      .where('[exerciseId+tagId]')
+      .equals([set.exerciseId, set.tagId])
+      .and((s) => s.date === set.date)
+      .count()
+    if (remaining === 0) await db.blockNotes.delete([set.date, set.exerciseId, set.tagId])
+  })
 }
 
 /** 指定日のセット一覧(表示順) */
@@ -150,6 +168,79 @@ export async function setDayLocation(date: string, name: string): Promise<void> 
     }
     await db.days.update(date, { locationId })
   })
+}
+
+/**
+ * その日のトレーニング全体の感想メモを設定する。
+ * 空文字ならメモを消す(undefined)。日レコードがなければ作る。
+ */
+export async function setDayNote(date: string, note: string): Promise<void> {
+  const trimmed = note.trim()
+  await db.transaction('rw', [db.days], async () => {
+    await ensureDay(date)
+    await db.days.update(date, { note: trimmed || undefined })
+  })
+}
+
+// ---- 種目×タグブロックの感想メモ(blockNotes) ----
+
+/** 2 つのブロックメモを合流する(キー衝突時)。両方あれば改行連結、同一なら 1 つに畳む */
+function mergeNotes(a: string | undefined, b: string | undefined): string | undefined {
+  const x = a?.trim() || undefined
+  const y = b?.trim() || undefined
+  if (!x) return y
+  if (!y || x === y) return x
+  return `${x}\n${y}`
+}
+
+/** ブロック(種目×タグ)の感想メモを取得する */
+export async function getBlockNote(
+  date: string,
+  exerciseId: string,
+  tagId: string = NO_TAG,
+): Promise<BlockNote | undefined> {
+  return db.blockNotes.get([date, exerciseId, tagId])
+}
+
+/**
+ * ブロック(種目×タグ)の感想メモを設定する。
+ * 空文字なら該当行を削除、非空なら put する。
+ */
+export async function setBlockNote(
+  date: string,
+  exerciseId: string,
+  tagId: string,
+  note: string,
+): Promise<void> {
+  const trimmed = note.trim()
+  if (!trimmed) {
+    await db.blockNotes.delete([date, exerciseId, tagId])
+    return
+  }
+  await db.blockNotes.put({ date, exerciseId, tagId, note: trimmed })
+}
+
+/** 指定日の全ブロックメモ(履歴日サマリ用) */
+export async function listBlockNotesByDate(date: string): Promise<BlockNote[]> {
+  return db.blockNotes.where('date').equals(date).toArray()
+}
+
+/**
+ * ブロックメモのキーを付け替える(タグ/種目変更・別日移動の追従に使う)。
+ * 移動元にメモが無ければ何もしない。移動先に既存メモがあれば mergeNotes で合流する。
+ * copy=true なら移動元を残す(コピー)。呼び出しトランザクションに db.blockNotes を含めること。
+ */
+async function rekeyBlockNote(
+  from: [string, string, string],
+  to: [string, string, string],
+  copy = false,
+): Promise<void> {
+  const src = await db.blockNotes.get(from)
+  if (!src) return
+  const dest = await db.blockNotes.get(to)
+  const merged = mergeNotes(dest?.note, src.note)
+  await db.blockNotes.put({ date: to[0], exerciseId: to[1], tagId: to[2], note: merged! })
+  if (!copy) await db.blockNotes.delete(from)
 }
 
 /** 場所の入力候補(sortOrder 順、未設定は lastUsedAt 降順) */
@@ -261,7 +352,7 @@ export async function transferSets(options: TransferOptions): Promise<number> {
   const tagId = options.tagId ?? NO_TAG
   if (fromDate === toDate) return 0
   const defaultLocationId = await resolveDefaultLocationId()
-  return db.transaction('rw', [db.sets, db.days], async () => {
+  return db.transaction('rw', [db.sets, db.days, db.blockNotes], async () => {
     let source = await db.sets.where('date').equals(fromDate).toArray()
     if (exerciseId !== undefined) {
       source = source.filter((s) => s.exerciseId === exerciseId && s.tagId === tagId)
@@ -288,6 +379,23 @@ export async function transferSets(options: TransferOptions): Promise<number> {
       const remaining = await db.sets.where('date').equals(fromDate).count()
       if (remaining === 0) await db.days.delete(fromDate)
     }
+
+    // ブロックメモを移動先へ追従させる(move=付け替え、copy=複製)。
+    // 日全体なら fromDate の全ブロックメモ、ブロック指定ならその 1 件が対象。
+    const copyNotes = mode === 'copy'
+    if (exerciseId !== undefined) {
+      await rekeyBlockNote([fromDate, exerciseId, tagId], [toDate, exerciseId, tagId], copyNotes)
+    } else {
+      const notes = await db.blockNotes.where('date').equals(fromDate).toArray()
+      for (const n of notes) {
+        await rekeyBlockNote(
+          [fromDate, n.exerciseId, n.tagId],
+          [toDate, n.exerciseId, n.tagId],
+          copyNotes,
+        )
+      }
+    }
+
     await ensureDay(toDate, defaultLocationId)
     return source.length
   })
@@ -400,10 +508,11 @@ export async function changeBlockTag(
   toTagId: string,
 ): Promise<void> {
   if (fromTagId === toTagId) return
-  await db.transaction('rw', [db.sets], async () => {
+  await db.transaction('rw', [db.sets, db.blockNotes], async () => {
     const sets = await db.sets.where('date').equals(date).toArray()
     const targets = sets.filter((s) => s.exerciseId === exerciseId && s.tagId === fromTagId)
     await db.sets.bulkPut(targets.map((s) => ({ ...s, tagId: toTagId })))
+    await rekeyBlockNote([date, exerciseId, fromTagId], [date, exerciseId, toTagId])
   })
 }
 
@@ -418,7 +527,7 @@ export async function changeBlockExercise(
   toExerciseId: string,
 ): Promise<void> {
   if (fromExerciseId === toExerciseId) return
-  await db.transaction('rw', [db.sets], async () => {
+  await db.transaction('rw', [db.sets, db.blockNotes], async () => {
     const daySets = (await db.sets.where('date').equals(date).toArray()).sort(
       (a, b) => a.orderInDay - b.orderInDay,
     )
@@ -432,6 +541,7 @@ export async function changeBlockExercise(
     await db.sets.bulkPut(
       targets.map((s) => ({ ...s, exerciseId: toExerciseId, orderInDay: order++ })),
     )
+    await rekeyBlockNote([date, fromExerciseId, tagId], [date, toExerciseId, tagId])
   })
 }
 

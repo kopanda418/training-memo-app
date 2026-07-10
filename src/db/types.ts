@@ -33,12 +33,27 @@ export interface Tag {
   createdAt: number
 }
 
-/** 1 日 1 レコード。トレーニング場所はここに持つ */
+/** 1 日 1 レコード。トレーニング場所とその日全体の感想メモをここに持つ */
 export interface Day {
   /** YYYY-MM-DD(端末ローカル) */
   date: string
   locationId?: string
+  /** その日のトレーニング全体の感想(体調・環境など) */
   note?: string
+}
+
+/**
+ * 種目×タグブロック(その日のその種目)の感想メモ。
+ * ブロックは永続レコードを持たない(sets の集合)ため、感想は複合主キー
+ * [date+exerciseId+tagId] のこのテーブルに別立てで持つ。タグ/種目変更・別日移動時は
+ * repository 側でキーを追従させる(架構は architecture.md / ADR-011 参照)。
+ */
+export interface BlockNote {
+  date: string
+  exerciseId: string
+  /** タグなしは NO_TAG ('') */
+  tagId: string
+  note: string
 }
 
 export interface WorkoutSet {

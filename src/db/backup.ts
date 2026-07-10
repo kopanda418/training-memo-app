@@ -1,6 +1,7 @@
 import { db } from './db'
 import { buildDefaultBodyParts } from './seed'
 import type {
+  BlockNote,
   BodyPartRow,
   Day,
   Exercise,
@@ -32,6 +33,8 @@ export interface BackupFile {
     bodyParts?: BodyPartRow[]
     /** v4 で追加(旧バックアップには無いので省略可) */
     templates?: Template[]
+    /** v7 で追加(旧バックアップには無いので省略可) */
+    blockNotes?: BlockNote[]
   }
 }
 
@@ -51,6 +54,7 @@ export async function exportData(): Promise<BackupFile> {
       setAttributes: await db.setAttributes.toArray(),
       bodyParts: await db.bodyParts.toArray(),
       templates: await db.templates.toArray(),
+      blockNotes: await db.blockNotes.toArray(),
     },
   }))
 }
@@ -75,6 +79,7 @@ export async function importData(backup: unknown): Promise<void> {
     await db.settings.bulkAdd(parsed.data.settings)
     await db.setAttributes.bulkAdd(parsed.data.setAttributes ?? [])
     await db.templates.bulkAdd(parsed.data.templates ?? [])
+    await db.blockNotes.bulkAdd(parsed.data.blockNotes ?? [])
     // 旧形式(bodyParts なし)の復元: デフォルト + 種目が使っている部位名から再構築する
     let bodyParts = parsed.data.bodyParts
     if (!bodyParts?.length) {

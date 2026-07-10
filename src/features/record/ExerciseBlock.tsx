@@ -22,6 +22,7 @@ import {
 } from '../../db/repository'
 import { NO_TAG, type WorkoutSet } from '../../db/types'
 import { TagSelectModal } from '../settings/TagSelectModal'
+import { BlockNoteRow } from './BlockNoteRow'
 import { ExercisePicker } from './ExercisePicker'
 import { PreviousRecordPanel } from './PreviousRecordPanel'
 import { SetRow } from './SetRow'
@@ -149,6 +150,7 @@ export function ExerciseBlock({
         )}
       </header>
       {message && <p className="py-1 text-xs text-amber-600 dark:text-amber-400">{message}</p>}
+      <BlockNoteRow date={date} exerciseId={exerciseId} tagId={tagId} />
       <PreviousRecordPanel date={date} exerciseId={exerciseId} tagId={tagId} />
       <DndContext
         sensors={sensors}

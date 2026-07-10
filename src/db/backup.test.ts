@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { BACKUP_FORMAT_VERSION, exportData, importData, validateBackup } from './backup'
 import { db } from './db'
-import { addSet, setDayLocation } from './repository'
+import { addSet, setBlockNote, setDayLocation, setDayNote } from './repository'
 
 beforeEach(async () => {
   await db.delete()
@@ -15,6 +15,8 @@ describe('エクスポート → 全削除 → インポートで復元できる
     const [heavy] = await db.tags.toArray()
     await addSet({ date: '2026-07-03', exerciseId: ex.id, tagId: heavy.id, weight: 100, reps: 5 })
     await setDayLocation('2026-07-03', 'ゴールドジム')
+    await setDayNote('2026-07-03', '体調は普通')
+    await setBlockNote('2026-07-03', ex.id, heavy.id, 'フォーム意識')
     await db.settings.put({ key: 'theme', value: 'dark' })
 
     const backup = await exportData()
@@ -33,6 +35,10 @@ describe('エクスポート → 全削除 → インポートで復元できる
     expect(await db.exercises.count()).toBe(backup.data.exercises.length)
     expect((await db.exercises.toArray()).map((e) => e.id)).toContain(ex.id)
     expect((await db.days.toArray())[0].locationId).toBeDefined()
+    expect((await db.days.toArray())[0].note).toBe('体調は普通')
+    const restoredNote = (await db.blockNotes.toArray())[0]
+    expect(restoredNote?.note).toBe('フォーム意識')
+    expect(restoredNote?.exerciseId).toBe(ex.id)
     expect((await db.settings.get('theme'))?.value).toBe('dark')
   })
 

@@ -34,25 +34,30 @@ GitHub リポジトリ → GitHub Actions → GitHub Pages (静的配信のみ)
 日付キーは端末ローカルの `YYYY-MM-DD` 文字列。ID は `crypto.randomUUID()`。
 
 ```ts
-// db.version(3) 時点
+// db.version(7) 時点
 exercises: 'id, name, bodyPart, sortOrder'
 // { id, name, bodyPart(部位名の文字列), sortOrder, isArchived, createdAt }
 tags: 'id, name, sortOrder'
 // { id, name, color?, sortOrder, isArchived, createdAt }
 // タグは全種目共通のマスタ(高重量日・中重量日・低重量日 など)
 days: 'date'
-// { date, locationId?, note? }  … 1日1レコード。場所はここに持つ
+// { date, locationId?, note? }  … 1日1レコード。場所と「その日全体の感想メモ(note)」をここに持つ
 sets: 'id, date, [exerciseId+tagId], exerciseId'
 // { id, date, exerciseId, tagId (なし時は '' 固定),
 //   weight(isBodyweight 時は加重分), isBodyweight?, reps, targetReps?,
 //   attribute?(セット属性・任意テキスト), isAssisted(deprecated→attribute),
-//   unit ('kg'|'lbs'), memo?, orderInDay, createdAt }
+//   unit ('kg'|'lbs'), memo?(セット単位の1行メモ), orderInDay, createdAt }
+blockNotes: '[date+exerciseId+tagId], date' // v7 追加
+// { date, exerciseId, tagId, note } … 種目×タグブロックの感想メモ。
+//   ブロックは永続レコードを持たないため別立て。タグ/種目変更・別日移動でキーを追従(ADR-011)
 locations: 'id, name'
 // { id, name, lastUsedAt, sortOrder } … 場所マスタ(v6: sortOrder 追加)
 setAttributes: 'id, name' // v2 追加
 // { id, name, lastUsedAt, sortOrder } … セット属性バンク(v6: sortOrder 追加)
 bodyParts: 'id, name, sortOrder' // v3 追加
 // { id, name, sortOrder } … 部位マスタ(追加可能。デフォルト7部位をシード)
+templates: 'id, name' // v4 追加
+// { id, name, items: {exerciseId, tagId}[], createdAt } … トレーニングメニュー
 settings: 'key'
 // { key, value } … bodyWeight / quickSetAttributes / quickExerciseTagIds / theme など
 //                   (キー一覧は src/db/settings.ts の SettingKey)
@@ -63,6 +68,7 @@ settings: 'key'
 - **種目×タグが分析の基本単位。** `sets` の複合インデックス `[exerciseId+tagId]` で履歴・グラフ・MAX をすべて引く。`tagId` は「タグなし」を空文字 `''` で正規化する(IndexedDB の複合インデックスは `undefined` を含むレコードを引けないため)
 - **MAX 記録はテーブルに持たず都度計算。** データ量が数万件規模なので `[exerciseId+tagId]` インデックスで十分速い。キャッシュテーブルはコピー/移動・編集・削除との整合性維持コストの方が高い(遅くなったら導入を検討 → decisions.md)
 - **日付間コピー/移動**は `sets` の `date` 書き換え(移動)/複製(コピー)+ 対象日の `days` レコード作成。1 トランザクションで行う
+- **感想メモは 3 粒度**(ADR-011)。セット単位=`sets.memo`、種目×タグブロック単位=`blockNotes` テーブル、その日全体=`days.note`。ブロックメモはタグ変更(`changeBlockTag`)・種目変更(`changeBlockExercise`)・別日コピー/移動(`transferSets`)でキーを追従させ(衝突時は改行連結)、ブロックが空になれば(`deleteSet`)孤児を削除する。日全体メモは日付に紐づき、`transferSets` では移動しない
 - スキーマ変更は必ず `db.version(n+1).stores(...).upgrade(...)` を追加し、この表を同時更新する
 
 ## 画面構成

@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import { buildDefaultBodyParts, buildDefaultExercises, buildDefaultTags } from './seed'
 import type {
+  BlockNote,
   BodyPartRow,
   Day,
   Exercise,
@@ -26,6 +27,7 @@ export class TrainingMemoDB extends Dexie {
   setAttributes!: Table<SetAttribute, string>
   bodyParts!: Table<BodyPartRow, string>
   templates!: Table<Template, string>
+  blockNotes!: Table<BlockNote, [string, string, string]>
 
   constructor() {
     super('training-memo')
@@ -89,6 +91,10 @@ export class TrainingMemoDB extends Dexie {
       await Promise.all(
         attrs.map((a, i) => tx.table('setAttributes').update(a.id, { sortOrder: i })),
       )
+    })
+    // v7: 種目×タグブロックの感想メモ(days.note とは別立て。複合主キー)
+    this.version(7).stores({
+      blockNotes: '[date+exerciseId+tagId], date',
     })
     // 初回作成時のみデフォルトマスタを投入
     this.on('populate', () => {

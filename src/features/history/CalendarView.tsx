@@ -4,7 +4,12 @@ import { useNavigate, useSearchParams } from 'react-router'
 import { Modal } from '../../components/Modal'
 import { TransferModal } from '../../components/TransferModal'
 import { useMasters } from '../../db/hooks'
-import { listRecordedDates, listSetsByDate } from '../../db/repository'
+import {
+  getDay,
+  listBlockNotesByDate,
+  listRecordedDates,
+  listSetsByDate,
+} from '../../db/repository'
 import { addMonths, monthGrid } from '../../lib/calendar'
 import { formatDateLabel, todayString } from '../../lib/date'
 import { groupSetsIntoBlocks } from '../../lib/groupSets'
@@ -41,6 +46,20 @@ export function CalendarView() {
   )
   const { exerciseName, tagName } = useMasters()
   const selectedBlocks = useMemo(() => groupSetsIntoBlocks(selectedSets ?? []), [selectedSets])
+
+  // 感想メモ(日全体・種目ごと)
+  const selectedDay = useLiveQuery(
+    () => (selected ? getDay(selected) : Promise.resolve(undefined)),
+    [selected],
+  )
+  const selectedBlockNotes = useLiveQuery(
+    () => (selected ? listBlockNotesByDate(selected) : Promise.resolve([])),
+    [selected],
+  )
+  const blockNoteMap = useMemo(
+    () => new Map((selectedBlockNotes ?? []).map((n) => [`${n.exerciseId}|${n.tagId}`, n.note])),
+    [selectedBlockNotes],
+  )
 
   const openDay = (date: string) => {
     navigate(date === today ? '/record' : `/record?date=${date}`)
@@ -131,23 +150,36 @@ export function CalendarView() {
               )}
             </div>
           </header>
+          {selectedDay?.note && (
+            <p className="mb-2 whitespace-pre-wrap rounded-lg bg-slate-50 px-2 py-1.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              📝 {selectedDay.note}
+            </p>
+          )}
           {selectedBlocks.length === 0 ? (
             <p className="py-2 text-center text-xs text-slate-400">この日の記録はありません</p>
           ) : (
             <ul className="flex flex-col gap-1">
-              {selectedBlocks.map((block) => (
-                <li key={`${block.exerciseId}|${block.tagId}`} className="text-xs">
-                  <span className="font-bold">{exerciseName(block.exerciseId)}</span>
-                  {tagName(block.tagId) && (
-                    <span className="ml-1 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300">
-                      {tagName(block.tagId)}
+              {selectedBlocks.map((block) => {
+                const note = blockNoteMap.get(`${block.exerciseId}|${block.tagId}`)
+                return (
+                  <li key={`${block.exerciseId}|${block.tagId}`} className="text-xs">
+                    <span className="font-bold">{exerciseName(block.exerciseId)}</span>
+                    {tagName(block.tagId) && (
+                      <span className="ml-1 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300">
+                        {tagName(block.tagId)}
+                      </span>
+                    )}
+                    <span className="ml-2 text-slate-500 dark:text-slate-400">
+                      {block.sets.map((s) => `${formatSetWeight(s)}×${s.reps}`).join(' / ')}
                     </span>
-                  )}
-                  <span className="ml-2 text-slate-500 dark:text-slate-400">
-                    {block.sets.map((s) => `${formatSetWeight(s)}×${s.reps}`).join(' / ')}
-                  </span>
-                </li>
-              ))}
+                    {note && (
+                      <span className="mt-0.5 block whitespace-pre-wrap pl-3 text-slate-500 dark:text-slate-400">
+                        📝 {note}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </section>
