@@ -19,6 +19,7 @@ import {
   detectMaxUpdate,
   getBlockNote,
   listBlockNotesByDate,
+  listBlockNotesByExercise,
   listBodyParts,
   listTemplates,
   renameExercise,
@@ -589,6 +590,17 @@ describe('setBlockNote / getBlockNote(種目ごとの感想メモ)', () => {
     expect((await getBlockNote('2026-07-03', ex.id, heavy.id))?.note).toBe('高重量メモ')
     expect((await getBlockNote('2026-07-03', ex.id))?.note).toBe('タグなしメモ')
     expect(await listBlockNotesByDate('2026-07-03')).toHaveLength(2)
+  })
+
+  it('listBlockNotesByExercise はその種目の全日付・全タグのメモを返す', async () => {
+    const [ex1, ex2] = await db.exercises.toArray()
+    const [heavy] = await db.tags.toArray()
+    await setBlockNote('2026-07-01', ex1.id, NO_TAG, 'ex1-0701')
+    await setBlockNote('2026-07-03', ex1.id, heavy.id, 'ex1-0703-heavy')
+    await setBlockNote('2026-07-03', ex2.id, NO_TAG, 'ex2-0703') // 別種目は含まない
+
+    const notes = await listBlockNotesByExercise(ex1.id)
+    expect(notes.map((n) => n.note).sort()).toEqual(['ex1-0701', 'ex1-0703-heavy'])
   })
 })
 

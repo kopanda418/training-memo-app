@@ -225,6 +225,11 @@ export async function listBlockNotesByDate(date: string): Promise<BlockNote[]> {
   return db.blockNotes.where('date').equals(date).toArray()
 }
 
+/** 指定種目の全ブロックメモ(種目別履歴用)。exerciseId 単独インデックスはないので全走査(件数は小さい) */
+export async function listBlockNotesByExercise(exerciseId: string): Promise<BlockNote[]> {
+  return db.blockNotes.filter((n) => n.exerciseId === exerciseId).toArray()
+}
+
 /**
  * ブロックメモのキーを付け替える(タグ/種目変更・別日移動の追従に使う)。
  * 移動元にメモが無ければ何もしない。移動先に既存メモがあれば mergeNotes で合流する。

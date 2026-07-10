@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate, useSearchParams } from 'react-router'
 import { db } from '../../db/db'
 import { useMasters } from '../../db/hooks'
+import { listBlockNotesByExercise } from '../../db/repository'
 import { useSetting } from '../../db/settings'
 import { NO_TAG, type WorkoutSet } from '../../db/types'
 import { formatDateLabel, todayString } from '../../lib/date'
@@ -34,6 +35,16 @@ export function ExerciseHistoryView() {
 
   // 実際に使われているタグだけフィルタ候補に出す
   const usedTagIds = useMemo(() => new Set((sets ?? []).map((s) => s.tagId)), [sets])
+
+  // 種目メモ(この種目のブロックメモを日付×タグで引けるようにする)
+  const blockNotes = useLiveQuery(
+    () => (exerciseId ? listBlockNotesByExercise(exerciseId) : Promise.resolve([])),
+    [exerciseId],
+  )
+  const blockNoteMap = useMemo(
+    () => new Map((blockNotes ?? []).map((n) => [`${n.date}|${n.tagId}`, n.note])),
+    [blockNotes],
+  )
 
   const groups = useMemo(() => {
     const filtered = (sets ?? []).filter((s) => tagFilter === 'all' || s.tagId === tagFilter)
@@ -118,6 +129,20 @@ export function ExerciseHistoryView() {
           >
             {formatDateLabel(group.date)} ›
           </button>
+          {[...new Set(group.sets.map((s) => s.tagId))].map((tid) => {
+            const note = blockNoteMap.get(`${group.date}|${tid}`)
+            if (!note) return null
+            const label = tagFilter === 'all' ? tagName(tid) : undefined
+            return (
+              <p
+                key={tid}
+                className="mb-1 whitespace-pre-wrap rounded-lg bg-slate-50 px-2 py-1 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+              >
+                📝 {label && <span className="font-bold">[{label}] </span>}
+                {note}
+              </p>
+            )
+          })}
           <ul className="flex flex-col gap-0.5">
             {group.sets.map((s, i) => (
               <li key={s.id} className="text-sm">

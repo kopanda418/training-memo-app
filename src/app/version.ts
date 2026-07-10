@@ -2,4 +2,4 @@
  * アプリのバージョン。設定画面に表示され、配信版の確認に使う。
  * 修正をデプロイするたびに必ずインクリメントすること(CLAUDE.md の開発ルール参照)
  */
-export const APP_VERSION = 'v1.0.15'
+export const APP_VERSION = 'v1.0.16'
