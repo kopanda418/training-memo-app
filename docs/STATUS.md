@@ -4,19 +4,18 @@
 
 ## 現在地
 
-- **フェーズ**: 🎉 Ver 1.0.16 リリース済み(2026-07-10、感想メモ機能を新設。日全体メモ+種目ごと(ブロック)メモ、記録画面で入力・履歴カレンダー/種目別履歴で表示)。ユーザー追加要望を随時対応中
+- **フェーズ**: 🎉 Ver 1.0.17 リリース済み(2026-07-16、記録→履歴の戻り動線を追加。履歴画面に「‹ 記録」ボタン+元の日付・スクロール位置への復元。iOS 実機でユーザー確認済み・問題なし)。ユーザー追加要望を随時対応中
 - **作業中マイルストーン**: なし。以降はバックログ(roadmap.md)とユーザーフィードバックに基づく継続開発
-- **実機未確認**: 感想メモ機能(v1.0.15〜v1.0.16)はローカルの test/lint/build と Vite トランスフォームまで確認済みだが、iOS 実機での入力・表示・キー追従の使用感はユーザー未確認。次セッション冒頭で結果を聞くこと
+- 感想メモ機能(v1.0.15〜v1.0.16)は 2026-07-10 のリリース以降ユーザーから問題報告なし(明示的な実機確認報告はないが、以降のセッションで不具合の言及なし)
 
 ## 次にやること
 
-1. **感想メモ(v1.0.15〜v1.0.16)の実機確認結果を聞く**: 記録画面での日メモ・種目メモ入力→リロード保持、種目/タグ変更・別日移動でのメモ追従、履歴カレンダー/種目別履歴での表示。問題が出たら `src/db/repository.ts`(blockNotes 追従ロジック)・`src/features/record/DayNoteRow.tsx` / `BlockNoteRow.tsx`・`src/features/history/{CalendarView,ExerciseHistoryView}.tsx` を見直す
-2. ユーザーが別プロジェクト(週次ウェイトトレーニングプラン管理)側で `docs/plan-import-guide.md` を元にプラン生成→取り込みの運用を開始する予定。連携で問題が出たら本 repo 側の `src/lib/planImport.ts` / `src/db/planImport.ts` を見直す
-3. 2026-07-11 の記録に検証用ダミーデータ(`テスト種目(削除可)` 種目・`プランお試し` タグ・「テストジム」場所)が残っている。ユーザーが本番運用を始める前に手動削除を推奨(記録画面でブロック削除 → 未使用になった種目/タグは設定の管理画面から削除可)
-4. **#1 暗転バグ・#8 タグ消失の実機観察**: v1.0.3 の対策後も暗転/タグ消失が起きるか確認する。続く場合は `docs/investigation-tag-loss.md` の仮説B対応(書き込みエラーの可視化)へ
-5. 移行データ(`input/training-memo-backup-migrated.json`)を設定画面のインポートで取り込む — ユーザー側の手作業
-6. 次のフィードバックまたはバックログ着手(roadmap.md の「Ver 1.0 以降のバックログ」参照)
-7. デプロイは main push で自動。配信確認は `gh run watch <id>` + 配信 HTML のバンドル名一致(HEAD から `npm run build` し直してハッシュ比較)。**push 前にローカルで `npm run lint` を通すこと**(下記の申し送り参照。docs/*.md も prettier --check の対象で、Markdown 編集後のフォーマット崩れで CI が落ちたことが複数回あった)
+1. ユーザーが別プロジェクト(週次ウェイトトレーニングプラン管理)側で `docs/plan-import-guide.md` を元にプラン生成→取り込みの運用を開始する予定。v1.0.17 で `isWarmup` も指定可能になった。連携で問題が出たら本 repo 側の `src/lib/planImport.ts` / `src/db/planImport.ts` を見直す
+2. 2026-07-11 の記録に検証用ダミーデータ(`テスト種目(削除可)` 種目・`プランお試し` タグ・「テストジム」場所)が残っている。ユーザーが本番運用を始める前に手動削除を推奨(記録画面でブロック削除 → 未使用になった種目/タグは設定の管理画面から削除可)
+3. **#1 暗転バグ・#8 タグ消失の実機観察**: v1.0.3 の対策後も暗転/タグ消失が起きるか確認する。続く場合は `docs/investigation-tag-loss.md` の仮説B対応(書き込みエラーの可視化)へ
+4. 移行データ(`input/training-memo-backup-migrated.json`)を設定画面のインポートで取り込む — ユーザー側の手作業
+5. 次のフィードバックまたはバックログ着手(roadmap.md の「Ver 1.0 以降のバックログ」参照)
+6. デプロイは main push で自動。配信確認は `gh run watch <id>` + 配信 HTML のバンドル名一致(HEAD から `npm run build` し直してハッシュ比較。`gh api .../pages/builds/latest` は 404 を返すことがあり当てにならない)。**push 前にローカルで `npm run lint` を通すこと**(下記の申し送り参照。docs/*.md も prettier --check の対象で、Markdown 編集後のフォーマット崩れで CI が落ちたことが複数回あった)
 
 ## 申し送り・注意点
 
@@ -50,6 +49,8 @@
 - **v1.0.13 で追加専用インポート「プラン取り込み」を新設**(ADR-010): 別プロジェクトが管理する週次トレーニングプランを、既存記録を壊さず取り込むための経路。`kind: 'plan-import'` の専用小フォーマット(種目名・タグ名ベース、内部 id 不要)。`src/lib/planImport.ts`(純粋関数 `computePlanActions`/`validatePlanImportFile`、db に触れない)+ `src/db/planImport.ts`(`previewPlanImport`/`applyPlanImport`、1トランザクションで新規種目・タグ・日・セットを作成)+ `src/features/settings/PlanImportModal.tsx`(ファイル選択→プレビュー→確定の2段階 UI、設定画面に追加)。`date+exerciseId+tagId` の組み合わせで既存 `sets` があればブロック単位で丸ごとスキップ(冪等)。未実施の予定は `reps: 0` で表現(既存の週間集計・MAX判定の除外ルールをそのまま流用、スキーマ変更なし)。外部プロジェクト向けの連携仕様は `docs/plan-import-guide.md` に集約(内部id不要・小さいファイルで完結する設計に更新済み)
 - **v1.0.14 で bodyPart 自動作成の不具合を修正**: プラン取り込みで新規種目を作る際、デフォルト7部位にない `bodyPart`(例: "体幹")を指定すると種目は作られるが `bodyParts` マスタに登録されず、種目選択・種目管理のタブ UI から選べなくなる不具合が実機テストで発覚(ADR-010 追記)。`computePlanActions` に `createBodyParts` を追加し、新規種目作成時に部位も name 一致で自動作成するよう修正。テスト23件(lib 15件・db 8件)。2026-07-10 に本番デプロイし、7/11 のダミープランで既存種目マッチ・新規種目/タグ/部位の自動作成・冪等性(再取り込みで全スキップ)を実機確認済み
 - **v1.0.15〜v1.0.16 で感想メモ機能を新設**(ADR-011): セット単位の1行メモ(`sets.memo`)に加え、2粒度の感想を残せるようにした。**日全体メモ**は既存の `days.note`(型に予約済み・未使用だった)を活用しスキーマ変更なし。**種目ごと(種目×タグブロック)メモ**は永続レコードが無いため専用テーブル `blockNotes`(複合主キー `[date+exerciseId+tagId]`、`db.version(7)`)を新設。`src/db/repository.ts` に `setDayNote`/`getBlockNote`/`setBlockNote`/`listBlockNotesByDate`/`listBlockNotesByExercise` を追加。**ブロックのキー追従**: タグ変更(`changeBlockTag`)・種目変更(`changeBlockExercise`)・別日コピー/移動(`transferSets`)でメモも一緒に移動し、衝突時は `mergeNotes` で改行連結。全セット削除でブロックが空になれば `deleteSet` が孤児メモを削除。**日全体メモは日付に紐づき transfer では移動しない**(locationId と同じ方針)。入力は `CommitInput` に `multiline`(textarea, blur確定)を追加し、記録画面ヘッダ(`DayNoteRow`)・各ブロック内(`BlockNoteRow`)に配置。表示は履歴カレンダー日サマリ(`CalendarView`)と種目別履歴(`ExerciseHistoryView`、日付ヘッダ下に日付×タグで表示、"すべて"時は `[タグ名]` 接頭)。バックアップは `blockNotes` を省略可配列で export/import に追加(`BACKUP_FORMAT_VERSION` は据え置き1)、`days.note` は Day レコードごと自動対応。テスト88件
+- **v1.0.17 で記録→履歴の戻り動線を追加**: 記録画面の「履歴 ›」(`PreviousRecordPanel`)・ヘッダ日付タップ(`RecordPage`)から履歴へ遷移する時に `location.state = { from: 'record' }` を渡し、`HistoryPage` は state がある時だけ「‹ 記録」ボタンを表示して `navigate(-1)` で戻る(日付は URL の `?date=` ごと復元される)。スクロール位置は `src/features/record/recordScroll.ts` の専用モジュール(モジュール変数、記録→履歴→戻るの一往復専用)で管理: 遷移ボタン押下時に `saveRecordScroll(date, getMainScrollTop())` で保存し、`RecordPage` の `useRestoreRecordScroll(date, ready)` が **POP(戻る/スワイプバック)+ 日付一致 + sets ロード完了** の時だけ一度復元する。復元後は useLiveQuery の遅延描画で clamp される間だけ rAF で数フレーム再適用(自己終了)。**スクロールリスナーは張らないこと**(記録入力の応答速度ルール)。タブバー経由(PUSH)は従来どおり今日・先頭。E2E は Playwright(Edge)+ dev サーバーで 13 アサーション確認済み、iOS 実機でもユーザー確認済み
+- **v1.0.17 でプラン取り込みに isWarmup 追加**: plan-import フォーマットのセットに `isWarmup?: boolean`(省略可)。`docs/plan-import-guide.md` 更新済み。テスト 94 件
 - **CI 失敗の教訓**: `npm run lint` は `docs/*.md` も含めた全ファイルに `prettier --check` をかける。Markdown を Write/Edit で直接編集すると整形が崩れやすく、push 後の CI で気づいて追加コミットする羽目になった(2026-07-09〜10 に STATUS.md・export-format.md で発生)。**docs 配下を編集したら push 前に必ず `npx prettier --write <対象ファイル>` を実行すること**
 
 ## セッション履歴
@@ -77,4 +78,5 @@
 | 2026-07-08     | v1.0.6(Phase 0 実機実験)→ v1.0.7: iOS標準タイマー連携を任意オプションで実装(ADR-009)。設定でON/OFF+ショートカット名。ON時は`shortcuts://`でネイティブ時計タイマー起動=画面ロック中も鳴る。実機で挙動確認済み(遷移・ダイアログなし・ロック鳴動・PWA自動復帰)。テスト57件                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 2026-07-09     | v1.0.9〜v1.0.10: 記録画面でキーボード表示中に隠れるタブバー⏱の代替として、キーボード直上に前回値ワンタップ起動ボタンを追加(`KeyboardTimerButton`)。visualViewport の offsetTop 起因で一瞬消える不具合を実機報告から特定・修正。v1.0.11〜v1.0.12: セット行の常設✕削除ボタンを廃止し左スワイプ削除に変更(`SwipeToDelete` 汎用コンポーネント新設)。軽いスワイプ=タップ確定、大きいスワイプ(140px超)=離した瞬間に即削除の1アクション化。自重トグルをW横へ移動・RPE/実績/メモに個別クリアボタン追加。Edge(Playwright)でスワイプ操作を含め実機相当の動作確認を実施、コンソールエラーなし。ユーザーが実機でスワイプ削除の使用感を確認し問題なしと確定、ロールバック用チェックポイントタグは削除。テスト57件 |
 | 2026-07-09〜10 | 別プロジェクト(週次ウェイトトレーニングプラン管理)との連携を検討。まず `docs/plan-import-guide.md` を外部の Claude Code へ渡す軽量な連携ガイドとして作成。次にユーザーが「毎回全記録を往復させるのは容量過大、アプリ改造も検討したい」と要望→設計を plan mode で提示・承認後、v1.0.13 で追加専用インポート「プラン取り込み」を実装(ADR-010、テスト18件)。本番デプロイし、ユーザー提供の7/11ダミープランで実地テスト→成功。ガイド更新の過程で、デフォルト外 bodyPart("体幹")を使うと新規種目が部位マスタ未登録のままタブ UI から選べなくなる不具合を発見、v1.0.14 で修正(テスト23件)、再デプロイし本番確認済み。7/11 のダミーテストデータはユーザー側で未清掃(次回セッションの次にやること参照)       |
+| 2026-07-16     | 記録→履歴の戻り動線を追加(v1.0.17)。記録画面の「履歴 ›」・日付タップから履歴へ遷移した時だけ「‹ 記録」ボタンを表示し、元の日付+スクロール位置へ復元(`src/features/record/recordScroll.ts` 新設、location.state + navigate(-1) + POP 判定)。Playwright(Edge)で 13 アサーションの E2E 検証後デプロイ、iOS 実機でユーザー確認済み・問題なし。あわせて前セッション以降に作業ツリーへ残っていたプラン取り込みの isWarmup 対応と感想メモのドキュメント反映をコミット。テスト 94 件                                                                                                                                                                                                                         |
 | 2026-07-10     | 感想メモ機能を新設。plan mode で「日全体+種目ごと両方/履歴カレンダー表示」を確定し実装→v1.0.15 デプロイ。日全体=`days.note`、種目ごと=新テーブル `blockNotes`(v7)+既存ブロック操作へのキー追従(ADR-011)。バックアップ対応・テスト87件。続けてユーザー要望で種目別履歴(`ExerciseHistoryView`)にも種目メモ表示を追加→v1.0.16 デプロイ(`listBlockNotesByExercise` 追加、テスト88件)。両デプロイとも配信バンドルのハッシュ一致・バージョン一致まで確認。iOS 実機での使用感はユーザー未確認                                                                                                                                                                                                               |
