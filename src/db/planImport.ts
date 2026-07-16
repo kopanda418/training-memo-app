@@ -136,6 +136,7 @@ export async function applyPlanImport(file: PlanImportFile): Promise<PlanActions
             tagId,
             weight: s.weight,
             isBodyweight: s.isBodyweight,
+            isWarmup: s.isWarmup,
             reps: s.reps ?? 0,
             unit: s.unit ?? unit,
             memo: s.memo,

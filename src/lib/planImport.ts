@@ -9,6 +9,8 @@ export interface PlanSetInput {
   /** 省略時は 0(未実施の予定として扱われ、週間集計・MAX判定から除外される) */
   reps?: number
   isBodyweight?: boolean
+  /** ウォームアップセットか(週間集計・MAX判定から除外される) */
+  isWarmup?: boolean
   memo?: string
 }
 

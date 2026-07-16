@@ -39,6 +39,7 @@ interface PlanImportFile {
         unit?: 'kg' | 'lbs' // 省略時はアプリ設定の defaultUnit
         reps?: number // 省略時 0 = 「未実施(予定)」。週間集計・MAX判定から自動除外される
         isBodyweight?: boolean
+        isWarmup?: boolean // ウォームアップセットにする(省略時 false)。週間集計・MAX判定から除外される
         memo?: string // 目標メモ(RPEなど自由記述)
       }[]
     }[]

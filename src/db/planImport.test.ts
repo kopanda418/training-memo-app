@@ -149,6 +149,25 @@ describe('applyPlanImport', () => {
     const sets = await db.sets.where('date').equals('2026-07-14').toArray()
     expect(sets[0].reps).toBe(0)
   })
+
+  it('isWarmup を指定するとウォームアップセットとして作成される', async () => {
+    const file = planFile([
+      {
+        date: '2026-07-14',
+        items: [
+          {
+            exercise: 'スクワット',
+            bodyPart: '脚',
+            sets: [{ weight: 40, isWarmup: true }, { weight: 100 }],
+          },
+        ],
+      },
+    ])
+    await applyPlanImport(file)
+    const sets = await db.sets.where('date').equals('2026-07-14').sortBy('orderInDay')
+    expect(sets[0].isWarmup).toBe(true)
+    expect(sets[1].isWarmup).toBeUndefined()
+  })
 })
 
 describe('previewPlanImport', () => {
