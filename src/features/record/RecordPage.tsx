@@ -10,6 +10,7 @@ import { DayNoteRow } from './DayNoteRow'
 import { ExerciseBlock } from './ExerciseBlock'
 import { ExercisePicker } from './ExercisePicker'
 import { LocationRow } from './LocationRow'
+import { getMainScrollTop, saveRecordScroll, useRestoreRecordScroll } from './recordScroll'
 import { TemplateModal } from './TemplateModal'
 
 interface BlockKey {
@@ -28,6 +29,9 @@ export function RecordPage() {
 
   const sets = useLiveQuery(() => listSetsByDate(date), [date])
   const { exerciseName, tagName } = useMasters()
+
+  // 履歴画面から「‹ 記録」で戻ってきた時にスクロール位置を復元
+  useRestoreRecordScroll(date, sets !== undefined)
 
   // 種目選択直後・セット 0 件のブロック(セットが入るまでの仮の器)
   const [emptyBlocks, setEmptyBlocks] = useState<BlockKey[]>([])
@@ -81,7 +85,12 @@ export function RecordPage() {
             <button
               type="button"
               className="text-base font-bold active:text-sky-600"
-              onClick={() => navigate(`/history?view=calendar&ym=${date.slice(0, 7)}`)}
+              onClick={() => {
+                saveRecordScroll(date, getMainScrollTop())
+                navigate(`/history?view=calendar&ym=${date.slice(0, 7)}`, {
+                  state: { from: 'record' },
+                })
+              }}
             >
               {formatDateLabel(date)}
             </button>

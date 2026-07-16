@@ -5,6 +5,7 @@ import { listHistory } from '../../db/repository'
 import type { WorkoutSet } from '../../db/types'
 import { formatDateLabel } from '../../lib/date'
 import { formatSetWeight } from '../../lib/setFormat'
+import { getMainScrollTop, saveRecordScroll } from './recordScroll'
 
 interface PreviousRecordPanelProps {
   date: string
@@ -38,9 +39,13 @@ export function PreviousRecordPanel({ date, exerciseId, tagId }: PreviousRecordP
         <button
           type="button"
           className="ml-auto px-1 font-bold text-sky-600 active:text-sky-400 dark:text-sky-400"
-          onClick={() =>
-            navigate(`/history?view=exercise&ex=${exerciseId}&tag=${encodeURIComponent(tagId)}`)
-          }
+          onClick={() => {
+            // 戻り先(‹ 記録)のためにスクロール位置を保存し、from を渡す
+            saveRecordScroll(date, getMainScrollTop())
+            navigate(`/history?view=exercise&ex=${exerciseId}&tag=${encodeURIComponent(tagId)}`, {
+              state: { from: 'record' },
+            })
+          }}
         >
           履歴 ›
         </button>
