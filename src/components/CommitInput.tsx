@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 
 interface CommitInputProps {
   value: string
@@ -31,9 +31,22 @@ export function CommitInput({
     setText(value)
   }
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // 内容量に応じて高さを自動調整(通常は 1 行、改行や折り返しで伸びる)。
+  // text が変わるたびに一度高さを潰してから scrollHeight に合わせる。
+  useLayoutEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    // border-box なので scrollHeight(内容+padding)に上下ボーダー分を足す
+    const border = el.offsetHeight - el.clientHeight
+    el.style.height = `${el.scrollHeight + border}px`
+  }, [text, multiline])
+
   if (multiline) {
     return (
       <textarea
+        ref={textareaRef}
         className={className}
         placeholder={placeholder}
         value={text}

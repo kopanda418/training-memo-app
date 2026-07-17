@@ -207,7 +207,8 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
               onClick={() => prevSet?.memo && void updateSet(set.id, { memo: prevSet.memo })}
             />
             <CommitInput
-              className="min-w-0 flex-1 border-b border-slate-100 bg-transparent px-1 py-0.5 text-xs dark:border-slate-700/60"
+              multiline
+              className="min-w-0 flex-1 resize-none border-b border-slate-100 bg-transparent px-1 py-0.5 text-xs leading-snug dark:border-slate-700/60"
               value={set.memo ?? ''}
               placeholder="メモ"
               onCommit={(t) => void updateSet(set.id, { memo: t.trim() || undefined })}
