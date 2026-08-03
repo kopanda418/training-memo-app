@@ -1,51 +1,90 @@
 import { useEffect, useState } from 'react'
 import { useSetting } from '../../db/settings'
-import { floatingBottom, isKeyboardOpen, type ViewportMetrics } from '../../lib/keyboardTimer'
+import { anchoredTop, isKeyboardOpen } from '../../lib/keyboardTimer'
 import { formatTimerSeconds } from '../../lib/timerFormat'
 import { DEFAULT_SHORTCUT_NAME } from './nativeTimer'
 import { beginInterval, getLastTimerSec } from './timerStore'
 
-const INITIAL_METRICS: ViewportMetrics = { innerHeight: 0, viewportHeight: 0, offsetTop: 0 }
+/** iOS はキーボード表示と自動スクロールをアニメーションするので、変化後しばらく追従する(ms) */
+const TRACK_MS = 500
+
+/**
+ * ボタンの top(記録画面ルートを基準にした絶対座標)。出さないときは null。
+ * 画面座標ではなく main のコンテンツ座標で求める。理由は lib/keyboardTimer.ts のコメント参照。
+ */
+function measureTop(): number | null {
+  const vv = window.visualViewport
+  if (!vv) return null
+  if (!isKeyboardOpen({ innerHeight: window.innerHeight, viewportHeight: vv.height })) return null
+
+  const el = document.activeElement
+  if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) return null
+
+  const main = document.querySelector('main')
+  if (!main) return null
+
+  // main の上端を原点にしたコンテンツ座標へ変換(同じ getBoundingClientRect 同士の引き算)
+  const origin = main.getBoundingClientRect().top - main.scrollTop
+  const rect = el.getBoundingClientRect()
+  return Math.round(
+    anchoredTop({
+      inputTop: rect.top - origin,
+      inputBottom: rect.bottom - origin,
+      scrollTop: main.scrollTop,
+    }),
+  )
+}
 
 /**
  * iOS の数字キーボードで下部タブバー(⏱)が隠れる問題への対策。
- * キーボード表示中はその直上に浮くボタンを出し、ワンタップで前回のタイマー値の
- * まま即開始する(時間選択の工程を挟まない)。従来どおり時間を選びたい場合は
- * キーボードを閉じてタブバーの ⏱ を使う。
+ * キーボード表示中は **フォーカス中の入力欄のすぐ上** に浮くボタンを出し、
+ * ワンタップで前回のタイマー値のまま即開始する(時間選択の工程を挟まない)。
+ * 従来どおり時間を選びたい場合はキーボードを閉じてタブバーの ⏱ を使う。
  *
- * offsetTop(iOS が入力欄を見せるためにページをずらした量)の扱いが要注意:
- * - **表示するかの判定には混ぜない**。混ぜるとスクロール中に値が縮んで unmount し、
- *   ボタンが一瞬で消える(v1.0.10 の不具合)
- * - **位置計算では必ず差し引く**。差し引かないと画面下側の入力欄で上へ飛んで消える
- *   (v1.0.19 で修正)
- *
- * 計算の根拠は lib/keyboardTimer.ts のコメント参照。
+ * position は fixed ではなく **記録画面ルート内の absolute**。
+ * こうするとスクロールしてもボタンが入力欄に追従するため、スクロールリスナーが要らない
+ * (記録入力の応答速度ルール)。fixed + visualViewport で画面下端に貼る方式は
+ * iOS 実機で破綻した(v1.0.20 で方式変更。経緯は lib/keyboardTimer.ts のコメント)。
  */
 export function KeyboardTimerButton() {
   const nativeEnabled = useSetting<boolean>('nativeTimerEnabled') ?? false
   const shortcutName = useSetting<string>('nativeTimerShortcutName') ?? DEFAULT_SHORTCUT_NAME
-  const [metrics, setMetrics] = useState<ViewportMetrics>(INITIAL_METRICS)
+  const [top, setTop] = useState<number | null>(null)
 
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
-    // offsetTop の変化は resize ではなく scroll で飛んでくるため両方購読する
-    const update = () =>
-      setMetrics({
-        innerHeight: window.innerHeight,
-        viewportHeight: vv.height,
-        offsetTop: vv.offsetTop,
+    let raf = 0
+    let until = 0
+    const apply = () =>
+      setTop((prev) => {
+        const next = measureTop()
+        return next === prev ? prev : next
       })
-    update()
-    vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
+    const loop = () => {
+      apply()
+      raf = performance.now() < until ? requestAnimationFrame(loop) : 0
+    }
+    // フォーカス移動・キーボード開閉のたびに、落ち着くまで数フレーム追従してから止まる
+    const track = () => {
+      until = performance.now() + TRACK_MS
+      if (!raf) raf = requestAnimationFrame(loop)
+    }
+    apply()
+    document.addEventListener('focusin', track)
+    document.addEventListener('focusout', track)
+    vv.addEventListener('resize', track)
+    vv.addEventListener('scroll', track)
     return () => {
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
+      if (raf) cancelAnimationFrame(raf)
+      document.removeEventListener('focusin', track)
+      document.removeEventListener('focusout', track)
+      vv.removeEventListener('resize', track)
+      vv.removeEventListener('scroll', track)
     }
   }, [])
 
-  if (!isKeyboardOpen(metrics)) return null
+  if (top === null) return null
 
   const lastSec = getLastTimerSec()
 
@@ -54,8 +93,9 @@ export function KeyboardTimerButton() {
       type="button"
       // pointerdown で起動: 直後に入力欄が blur され値は確定コミットされる(preventDefault しない)
       onPointerDown={() => beginInterval(lastSec, { nativeEnabled, shortcutName })}
-      style={{ bottom: floatingBottom(metrics) }}
-      className="fixed right-3 z-40 flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg active:bg-emerald-700"
+      style={{ top }}
+      // h-10 は lib/keyboardTimer.ts の BUTTON_HEIGHT と一致させること
+      className="absolute right-3 z-40 flex h-10 items-center gap-1.5 rounded-full bg-emerald-600 px-4 text-sm font-bold text-white shadow-lg active:bg-emerald-700"
     >
       <span aria-hidden>⏱</span>
       休憩 {formatTimerSeconds(lastSec)}

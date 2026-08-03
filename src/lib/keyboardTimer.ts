@@ -1,54 +1,59 @@
 /**
- * キーボード直上に浮かせるボタン(features/timer/KeyboardTimerButton)の位置計算。
+ * キーボード表示中に出す浮動タイマーボタン(features/timer/KeyboardTimerButton)の位置計算。
  * DOM に触れない純粋関数だけを置き、テストで挙動を固定する。
  *
- * 用語(iOS のビューポートは 2 種類ある):
- * - レイアウトビューポート = window.innerHeight。position: fixed が基準にする座標系
- * - ビジュアルビューポート = visualViewport。キーボードを除いた「実際に見えている窓」。
- *   iOS は下側の入力欄を見せるためにこの窓をページ上で下へずらす(そのずれ量が offsetTop)
+ * 【なぜ画面座標を使わないか(v1.0.20)】
+ * iOS では position: fixed の基準(レイアウトビューポート)と実際に見えている領域
+ * (visualViewport)の対応が場面ごとに食い違い、visualViewport.height / offsetTop から
+ * 「画面の下端」を逆算する方法が実機で破綻した(入力欄が画面上部なら正常、中程では
+ * キーボードの裏、下部では画面外へ飛ぶ)。
+ * そこで基準を画面ではなく **フォーカス中の入力欄** に変えた。iOS は必ず入力欄が
+ * 見える位置までスクロールするので、その真上に置けば場面によらず見える。
+ * 座標はすべてスクロールコンテナ(main)のコンテンツ座標で統一し、同じ
+ * getBoundingClientRect 同士の引き算だけで求める(ビューポートの解釈に依存しない)。
  */
 
 /** これ未満のキーボード高さは、アドレスバー伸縮などのノイズとみなして無視する */
 export const KEYBOARD_THRESHOLD = 100
 
-/** 可視領域の下端(=キーボード上端)からの余白 px */
-export const FLOAT_MARGIN = 8
+/** 入力欄とボタンの間隔 px */
+export const GAP = 8
+
+/** ボタンの高さ px(CSS の h-10 と一致させること) */
+export const BUTTON_HEIGHT = 40
 
 export interface ViewportMetrics {
-  /** window.innerHeight (H) */
+  /** window.innerHeight */
   innerHeight: number
-  /** visualViewport.height (V) */
+  /** visualViewport.height */
   viewportHeight: number
-  /** visualViewport.offsetTop (T) */
-  offsetTop: number
 }
 
-/** キーボード高さ K = H - V。offsetTop は混ぜないこと(下の isKeyboardOpen 参照) */
+/** キーボード高さ。offsetTop は混ぜないこと(混ぜると自動スクロール中に閾値を割って一瞬で消える) */
 export function keyboardHeight(m: ViewportMetrics): number {
   return Math.max(0, m.innerHeight - m.viewportHeight)
 }
 
-/**
- * ボタンを出すか。判定には offsetTop を **使わない**。
- * 混ぜると iOS の自動スクロール中に値が閾値を割り、ボタンが unmount して一瞬で消える(v1.0.10 の不具合)。
- */
+/** ボタンを出すか(= ソフトキーボードが開いているか) */
 export function isKeyboardOpen(m: ViewportMetrics): boolean {
   return keyboardHeight(m) > KEYBOARD_THRESHOLD
 }
 
+export interface AnchorMetrics {
+  /** フォーカス中の入力欄の上端(main のコンテンツ座標) */
+  inputTop: number
+  /** 同・下端 */
+  inputBottom: number
+  /** main.scrollTop = 可視領域の上端のコンテンツ座標 */
+  scrollTop: number
+}
+
 /**
- * position: fixed の bottom 値。
- *
- * fixed の基準はレイアウトビューポートなので、bottom = K + margin だとページ座標の
- * 「V - margin」に置かれる。一方いま見えている範囲はページ座標で [T, T + V] なので、
- * 画面上の位置は V - margin - T となり、T が大きいほどボタンが上へ飛び、
- * T > V - margin で画面外(上)へ消える。T は入力欄が画面下側にあるほど大きくなるため、
- * 「下の欄にフォーカスすると出ない」という症状になっていた(v1.0.19 で修正)。
- * よって位置計算では T を必ず差し引く。
- *
- * 下限 FLOAT_MARGIN は、キーボード開閉アニメーション中に一時的に T > K となった場合に
- * 負値でボタンが画面下へ落ちるのを防ぐ保険。
+ * ボタンの top(main のコンテンツ座標 = position: absolute の値)。
+ * 原則は入力欄の真上。上に置くと可視領域の外(上)へ出てしまう場合だけ真下へ回す
+ * (入力欄が可視領域の一番上にある場合 = その下は必ず見えている)。
  */
-export function floatingBottom(m: ViewportMetrics): number {
-  return Math.max(FLOAT_MARGIN, keyboardHeight(m) + FLOAT_MARGIN - Math.max(0, m.offsetTop))
+export function anchoredTop(m: AnchorMetrics): number {
+  const above = m.inputTop - BUTTON_HEIGHT - GAP
+  return above >= m.scrollTop + GAP ? above : m.inputBottom + GAP
 }
