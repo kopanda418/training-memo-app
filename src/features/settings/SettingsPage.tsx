@@ -16,6 +16,7 @@ import {
   measureGapCandidate,
   setBottomGapPx,
 } from '../../app/viewportFix'
+import { clearViewportLog, readViewportLog } from '../../app/viewportLog'
 import { SOUND_OPTIONS, type SoundId } from '../timer/sounds'
 import { DEFAULT_SHORTCUT_NAME, PWA_URL } from '../timer/nativeTimer'
 import { previewSound } from '../timer/timerStore'
@@ -40,6 +41,9 @@ export function SettingsPage() {
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
   const defaultLocationId = useSetting<string>('defaultLocationId')
   const locations = useLiveQuery(() => listLocations(), [])
+
+  // 【一時】ビューポート診断ログの表示用
+  const [diagLog, setDiagLog] = useState(() => readViewportLog())
 
   const [attrSlotOpen, setAttrSlotOpen] = useState<number | null>(null)
   const [tagSlotOpen, setTagSlotOpen] = useState<number | null>(null)
@@ -498,6 +502,51 @@ export function SettingsPage() {
           </button>
           <span className="tabular w-12 shrink-0 text-right text-sm font-bold">{gapPx}px</span>
         </div>
+      </section>
+
+      {/* 【一時】浮動タイマーの実機調査用。原因が確定したら app/viewportLog.ts ごと削除する */}
+      <section className="rounded-xl border border-amber-300 bg-amber-50 p-3 shadow-sm dark:border-amber-800 dark:bg-amber-950">
+        <h2 className="text-sm font-bold">ビューポート診断(一時)</h2>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          休憩ボタンの不具合調査用です。記録画面で
+          <span className="font-bold">画面の上・中・下にある欄をそれぞれタップ</span>
+          したあと、ここで「コピー」を押して開発側へ貼り付けてください
+        </p>
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            className="flex-1 rounded-lg bg-amber-600 py-2 text-sm font-bold text-white active:bg-amber-700"
+            onClick={() => {
+              const text = readViewportLog()
+              void navigator.clipboard
+                ?.writeText(text)
+                .then(() => showToast('診断ログをコピーしました'))
+                .catch(() => showToast('コピーできませんでした(下の表示を直接送ってください)'))
+            }}
+          >
+            コピー
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm active:bg-slate-100 dark:border-slate-600 dark:active:bg-slate-700"
+            onClick={() => setDiagLog(readViewportLog())}
+          >
+            更新
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm active:bg-slate-100 dark:border-slate-600 dark:active:bg-slate-700"
+            onClick={() => {
+              clearViewportLog()
+              setDiagLog(readViewportLog())
+            }}
+          >
+            クリア
+          </button>
+        </div>
+        <pre className="mt-2 max-h-56 overflow-auto rounded bg-white p-2 text-[10px] leading-tight text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+          {diagLog}
+        </pre>
       </section>
 
       <p className="text-xs text-slate-400">

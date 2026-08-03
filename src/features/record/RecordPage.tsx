@@ -69,8 +69,7 @@ export function RecordPage() {
   }
 
   return (
-    // relative: KeyboardTimerButton を絶対配置する基準(= main のコンテンツ座標)
-    <div className="relative flex min-h-full flex-col">
+    <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
         <div className="flex items-center justify-between px-1 py-1.5">
           <button
@@ -168,7 +167,7 @@ export function RecordPage() {
       )}
       {templateOpen && <TemplateModal open date={date} onClose={() => setTemplateOpen(false)} />}
 
-      {/* 数字キーボードで隠れるタブバーの ⏱ を補う: 入力中の欄のすぐ上に前回値ワンタップ起動ボタン */}
+      {/* 数字キーボードで隠れるタブバーの ⏱ を補う: キーボード直上に前回値ワンタップ起動ボタン */}
       <KeyboardTimerButton />
     </div>
   )
