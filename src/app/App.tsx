@@ -16,7 +16,6 @@ export default function App() {
     <HashRouter>
       {/* 画面四辺に固定。高さは 100% + --bottom-gap(iOS スタンドアロンのビューポート短縮バグ補正。main.tsx 参照) */}
       <div
-        data-app-shell
         className="fixed inset-x-0 top-0 flex flex-col"
         style={{
           height: 'calc(100% + var(--bottom-gap, 0px))',

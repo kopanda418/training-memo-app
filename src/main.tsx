@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import App from './app/App'
 import { installViewportFix } from './app/viewportFix'
-import { installViewportLog } from './app/viewportLog'
 import './index.css'
 
 registerSW({ immediate: true })
@@ -23,9 +22,6 @@ window.visualViewport?.addEventListener('resize', () => setTimeout(restoreViewpo
 
 // タブバー位置の補正(環境依存のため設定で切替。詳細は app/viewportFix.ts)
 installViewportFix()
-
-// 【一時】浮動タイマーの実機調査用。設定画面「ビューポート診断」から読める(app/viewportLog.ts)
-installViewportLog()
 
 // IndexedDB の永続化を要求(ブラウザ都合のデータ削除を防ぎやすくする)
 void navigator.storage?.persist?.()

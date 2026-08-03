@@ -100,7 +100,6 @@ export function KeyboardTimerButton() {
   return (
     <button
       type="button"
-      data-timer-float
       // pointerdown で起動: 直後に入力欄が blur され値は確定コミットされる(preventDefault しない)
       onPointerDown={() => beginInterval(lastSec, { nativeEnabled, shortcutName })}
       style={{ bottom: floatingBottom(state.metrics) }}
