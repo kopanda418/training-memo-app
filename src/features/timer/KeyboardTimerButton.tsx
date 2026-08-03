@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useSetting } from '../../db/settings'
+import { floatingBottom, isKeyboardOpen, type ViewportMetrics } from '../../lib/keyboardTimer'
 import { formatTimerSeconds } from '../../lib/timerFormat'
 import { DEFAULT_SHORTCUT_NAME } from './nativeTimer'
 import { beginInterval, getLastTimerSec } from './timerStore'
 
-/** これ未満のキーボード高さは、アドレスバー伸縮などのノイズとみなして無視する */
-const KEYBOARD_THRESHOLD = 100
+const INITIAL_METRICS: ViewportMetrics = { innerHeight: 0, viewportHeight: 0, offsetTop: 0 }
 
 /**
  * iOS の数字キーボードで下部タブバー(⏱)が隠れる問題への対策。
@@ -13,19 +13,29 @@ const KEYBOARD_THRESHOLD = 100
  * まま即開始する(時間選択の工程を挟まない)。従来どおり時間を選びたい場合は
  * キーボードを閉じてタブバーの ⏱ を使う。
  *
- * キーボード高さ = innerHeight - visualViewport.height。
- * offsetTop(入力欄を見せるための自動スクロール量)は差し引かないこと:
- * 差し引くとスクロール時に値が縮み、ボタンがキーボードの裏へ落ちて消える。
+ * offsetTop(iOS が入力欄を見せるためにページをずらした量)の扱いが要注意:
+ * - **表示するかの判定には混ぜない**。混ぜるとスクロール中に値が縮んで unmount し、
+ *   ボタンが一瞬で消える(v1.0.10 の不具合)
+ * - **位置計算では必ず差し引く**。差し引かないと画面下側の入力欄で上へ飛んで消える
+ *   (v1.0.19 で修正)
+ *
+ * 計算の根拠は lib/keyboardTimer.ts のコメント参照。
  */
 export function KeyboardTimerButton() {
   const nativeEnabled = useSetting<boolean>('nativeTimerEnabled') ?? false
   const shortcutName = useSetting<string>('nativeTimerShortcutName') ?? DEFAULT_SHORTCUT_NAME
-  const [keyboardHeight, setKeyboardHeight] = useState(0)
+  const [metrics, setMetrics] = useState<ViewportMetrics>(INITIAL_METRICS)
 
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
-    const update = () => setKeyboardHeight(Math.max(0, window.innerHeight - vv.height))
+    // offsetTop の変化は resize ではなく scroll で飛んでくるため両方購読する
+    const update = () =>
+      setMetrics({
+        innerHeight: window.innerHeight,
+        viewportHeight: vv.height,
+        offsetTop: vv.offsetTop,
+      })
     update()
     vv.addEventListener('resize', update)
     vv.addEventListener('scroll', update)
@@ -35,7 +45,7 @@ export function KeyboardTimerButton() {
     }
   }, [])
 
-  if (keyboardHeight <= KEYBOARD_THRESHOLD) return null
+  if (!isKeyboardOpen(metrics)) return null
 
   const lastSec = getLastTimerSec()
 
@@ -44,7 +54,7 @@ export function KeyboardTimerButton() {
       type="button"
       // pointerdown で起動: 直後に入力欄が blur され値は確定コミットされる(preventDefault しない)
       onPointerDown={() => beginInterval(lastSec, { nativeEnabled, shortcutName })}
-      style={{ bottom: keyboardHeight + 8 }}
+      style={{ bottom: floatingBottom(metrics) }}
       className="fixed right-3 z-40 flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg active:bg-emerald-700"
     >
       <span aria-hidden>⏱</span>
