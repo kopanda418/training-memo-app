@@ -107,25 +107,38 @@ export interface PlanActions {
   createTags: { name: string }[]
   /** 新規に作成する日(location はその日のみ適用) */
   newDays: { date: string; location?: string }[]
-  /** 追加するブロック(種目×タグ単位) */
+  /** 追加するブロック(種目×タグ単位、既存記録なし) */
   addBlocks: PlanBlock[]
-  /** 既に記録があるためスキップするブロック */
+  /** 既存セットを削除して置き換えるブロック(overwrite 指定時のみ発生) */
+  overwriteBlocks: PlanBlock[]
+  /** 既に記録があるためスキップするブロック(overwrite 未指定時) */
   skipBlocks: { date: string; exerciseName: string; tagName?: string }[]
   /** 取り込み不可のエラー(該当項目は addBlocks に含まれない) */
   errors: string[]
+}
+
+export interface ComputePlanActionsOptions {
+  /** true の場合、既存記録があるブロックをスキップせず overwriteBlocks へ回す */
+  overwrite?: boolean
 }
 
 /**
  * プランファイルと現在の db 状態から、実行すべきアクションを計算する純粋関数。
  * db には触れない(プレビュー表示と実書き込みの両方がこれを使う)。
  */
-export function computePlanActions(file: PlanImportFile, existing: ExistingPlanData): PlanActions {
+export function computePlanActions(
+  file: PlanImportFile,
+  existing: ExistingPlanData,
+  options?: ComputePlanActionsOptions,
+): PlanActions {
+  const overwrite = options?.overwrite ?? false
   const actions: PlanActions = {
     createBodyParts: [],
     createExercises: [],
     createTags: [],
     newDays: [],
     addBlocks: [],
+    overwriteBlocks: [],
     skipBlocks: [],
     errors: [],
   }
@@ -182,11 +195,13 @@ export function computePlanActions(file: PlanImportFile, existing: ExistingPlanD
       }
 
       const canCheckSkip = !!existingExercise && existingTagId !== undefined
-      const skip =
+      const hasConflict =
         canCheckSkip && existing.setKeys.has(setKeyOf(date, existingExercise!.id, existingTagId!))
 
-      if (skip) {
+      if (hasConflict && !overwrite) {
         actions.skipBlocks.push({ date, exerciseName, tagName })
+      } else if (hasConflict && overwrite) {
+        actions.overwriteBlocks.push({ date, exerciseName, tagName, sets: item.sets })
       } else {
         actions.addBlocks.push({ date, exerciseName, tagName, sets: item.sets })
       }

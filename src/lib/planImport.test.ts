@@ -133,8 +133,33 @@ describe('computePlanActions', () => {
     ])
     const actions = computePlanActions(file, existing)
     expect(actions.addBlocks).toEqual([])
+    expect(actions.overwriteBlocks).toEqual([])
     expect(actions.skipBlocks).toEqual([
       { date: '2026-07-14', exerciseName: 'ベンチプレス', tagName: undefined },
+    ])
+  })
+
+  it('overwrite: true の場合、既存記録があるブロックはスキップせず overwriteBlocks へ回す', () => {
+    const existing: ExistingPlanData = {
+      exercises: [{ id: 'ex-1', name: 'ベンチプレス' }],
+      tags: [],
+      bodyPartNames: new Set(['胸']),
+      dayDates: new Set(['2026-07-14']),
+      setKeys: new Set([setKeyOf('2026-07-14', 'ex-1', NO_TAG)]),
+    }
+    const file = baseFile([
+      { date: '2026-07-14', items: [{ exercise: 'ベンチプレス', sets: [{ weight: 90 }] }] },
+    ])
+    const actions = computePlanActions(file, existing, { overwrite: true })
+    expect(actions.skipBlocks).toEqual([])
+    expect(actions.addBlocks).toEqual([])
+    expect(actions.overwriteBlocks).toEqual([
+      {
+        date: '2026-07-14',
+        exerciseName: 'ベンチプレス',
+        tagName: undefined,
+        sets: [{ weight: 90 }],
+      },
     ])
   })
 

@@ -150,6 +150,68 @@ describe('applyPlanImport', () => {
     expect(sets[0].reps).toBe(0)
   })
 
+  it('overwrite: true の場合、既存の重複ブロックを削除して新しいセットに置き換える', async () => {
+    const file = planFile([
+      {
+        date: '2026-07-14',
+        items: [{ exercise: 'ベンチプレス', bodyPart: '胸', sets: [{ weight: 80 }] }],
+      },
+    ])
+    await applyPlanImport(file)
+
+    const updated = planFile([
+      {
+        date: '2026-07-14',
+        items: [
+          {
+            exercise: 'ベンチプレス',
+            sets: [{ weight: 85 }, { weight: 85 }],
+          },
+        ],
+      },
+    ])
+    const result = await applyPlanImport(updated, { overwrite: true })
+
+    expect(result.overwriteBlocks).toHaveLength(1)
+    expect(result.addBlocks).toEqual([])
+    expect(result.skipBlocks).toEqual([])
+
+    const sets = await db.sets.where('date').equals('2026-07-14').sortBy('orderInDay')
+    expect(sets).toHaveLength(2)
+    expect(sets.map((s) => s.weight)).toEqual([85, 85])
+    expect(await db.exercises.where('name').equals('ベンチプレス').count()).toBe(1)
+  })
+
+  it('overwrite: true でも、他のブロックの既存セットには影響しない', async () => {
+    await applyPlanImport(
+      planFile([
+        {
+          date: '2026-07-14',
+          items: [
+            { exercise: 'ベンチプレス', bodyPart: '胸', sets: [{ weight: 80 }] },
+            { exercise: 'スクワット', bodyPart: '脚', sets: [{ weight: 100 }] },
+          ],
+        },
+      ]),
+    )
+
+    await applyPlanImport(
+      planFile([
+        { date: '2026-07-14', items: [{ exercise: 'ベンチプレス', sets: [{ weight: 90 }] }] },
+      ]),
+      { overwrite: true },
+    )
+
+    const squat = await db.exercises.where('name').equals('スクワット').first()
+    const squatSets = await db.sets
+      .where('date')
+      .equals('2026-07-14')
+      .filter((s) => s.exerciseId === squat!.id)
+      .toArray()
+    expect(squatSets).toHaveLength(1)
+    expect(squatSets[0].weight).toBe(100)
+  })
+
   it('isWarmup を指定するとウォームアップセットとして作成される', async () => {
     const file = planFile([
       {

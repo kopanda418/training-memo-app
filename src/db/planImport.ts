@@ -1,6 +1,7 @@
 import {
   computePlanActions,
   setKeyOf,
+  type ComputePlanActionsOptions,
   type ExistingPlanData,
   type PlanActions,
   type PlanImportFile,
@@ -30,8 +31,11 @@ async function loadExistingPlanData(): Promise<ExistingPlanData> {
 }
 
 /** プランファイルを検証済みの状態で受け取り、適用結果のプレビュー(書き込みなし)を返す */
-export async function previewPlanImport(file: PlanImportFile): Promise<PlanActions> {
-  return computePlanActions(file, await loadExistingPlanData())
+export async function previewPlanImport(
+  file: PlanImportFile,
+  options?: ComputePlanActionsOptions,
+): Promise<PlanActions> {
+  return computePlanActions(file, await loadExistingPlanData(), options)
 }
 
 /** 場所を名前で解決する。同名(トリム後完全一致)があれば再利用、なければ新規作成する */
@@ -51,11 +55,15 @@ async function resolveOrCreateLocationId(name: string): Promise<string> {
 }
 
 /**
- * プランを取り込む(追加専用)。既存データは書き換えず、まだ記録がない
- * date + 種目×タグ の組み合わせにだけセットを追加する(`docs/decisions.md` ADR-010)。
+ * プランを取り込む。既存記録がない date + 種目×タグ の組み合わせにはセットを追加する
+ * (`docs/decisions.md` ADR-010)。`options.overwrite` を true にすると、既に記録がある
+ * ブロックもスキップせず、既存セットを削除してから新セットで置き換える(ADR-012)。
  * 未登録の種目・タグは name 一致で新規作成する。返り値は実行結果(プレビューと同じ形)。
  */
-export async function applyPlanImport(file: PlanImportFile): Promise<PlanActions> {
+export async function applyPlanImport(
+  file: PlanImportFile,
+  options?: ComputePlanActionsOptions,
+): Promise<PlanActions> {
   const unit = (await getSetting<WeightUnit>('defaultUnit')) || 'kg'
   return db.transaction(
     'rw',
@@ -66,7 +74,7 @@ export async function applyPlanImport(file: PlanImportFile): Promise<PlanActions
         db.tags.toArray(),
         db.bodyParts.toArray(),
       ])
-      const actions = computePlanActions(file, await loadExistingPlanData())
+      const actions = computePlanActions(file, await loadExistingPlanData(), options)
 
       let bodyPartSortOrder = bodyParts.length
         ? Math.max(...bodyParts.map((p) => p.sortOrder)) + 1
@@ -111,6 +119,19 @@ export async function applyPlanImport(file: PlanImportFile): Promise<PlanActions
         await db.days.add({ date: d.date, locationId })
       }
 
+      // 上書き対象ブロックは、新セットを追加する前に既存セットを削除しておく
+      for (const block of actions.overwriteBlocks) {
+        const exerciseId = exerciseIdByName.get(block.exerciseName)
+        const tagId = block.tagName ? tagIdByName.get(block.tagName) : NO_TAG
+        if (!exerciseId || tagId === undefined) continue
+        const oldSets = await db.sets
+          .where('date')
+          .equals(block.date)
+          .filter((s) => s.exerciseId === exerciseId && s.tagId === tagId)
+          .toArray()
+        await db.sets.bulkDelete(oldSets.map((s) => s.id))
+      }
+
       const orderCounters = new Map<string, number>()
       const nextOrder = async (date: string) => {
         let order = orderCounters.get(date)
@@ -123,7 +144,7 @@ export async function applyPlanImport(file: PlanImportFile): Promise<PlanActions
       }
 
       const now = Date.now()
-      for (const block of actions.addBlocks) {
+      for (const block of [...actions.addBlocks, ...actions.overwriteBlocks]) {
         const exerciseId = exerciseIdByName.get(block.exerciseName)
         const tagId = block.tagName ? tagIdByName.get(block.tagName) : NO_TAG
         if (!exerciseId || tagId === undefined) continue

@@ -13,19 +13,22 @@ const blockLabel = (b: { date: string; exerciseName: string; tagName?: string })
   `${b.date} ${b.exerciseName}${b.tagName ? `(${b.tagName})` : ''}`
 
 /**
- * プラン取り込み(追加専用)。既存データは書き換えず、まだ記録がない
+ * プラン取り込み。既定では既存データを書き換えず、まだ記録がない
  * date+種目×タグ にだけセットを追加する(docs/decisions.md ADR-010)。
- * ファイル選択 → プレビュー確認 → 取り込みの2段階
+ * 「重複分を上書きする」を ON にすると、既に記録があるブロックも既存セットを削除して
+ * 置き換える(確認ダイアログあり、ADR-012)。ファイル選択 → プレビュー確認 → 取り込みの2段階
  */
 export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<PlanImportFile | null>(null)
   const [preview, setPreview] = useState<PlanActions | null>(null)
+  const [overwrite, setOverwrite] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const reset = () => {
     setFile(null)
     setPreview(null)
+    setOverwrite(false)
   }
 
   const handleClose = () => {
@@ -37,19 +40,31 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
     try {
       const parsed = validatePlanImportFile(JSON.parse(await rawFile.text()))
       setFile(parsed)
-      setPreview(await previewPlanImport(parsed))
+      setPreview(await previewPlanImport(parsed, { overwrite }))
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'プランファイルを読み込めませんでした')
     }
   }
 
+  const handleToggleOverwrite = async (checked: boolean) => {
+    setOverwrite(checked)
+    if (file) setPreview(await previewPlanImport(file, { overwrite: checked }))
+  }
+
   const handleApply = async () => {
-    if (!file) return
+    if (!file || !preview) return
+    if (overwrite && preview.overwriteBlocks.length > 0) {
+      const list = preview.overwriteBlocks.map((b) => `・${blockLabel(b)}`).join('\n')
+      const ok = window.confirm(`次の記録は既存データと重複しています。上書きしますか?\n\n${list}`)
+      if (!ok) return
+    }
     setBusy(true)
     try {
-      const result = await applyPlanImport(file)
+      const result = await applyPlanImport(file, { overwrite })
       showToast(
-        `取り込みました(追加 ${result.addBlocks.length} 件 / スキップ ${result.skipBlocks.length} 件)`,
+        `取り込みました(追加 ${result.addBlocks.length} 件` +
+          (overwrite ? ` / 上書き ${result.overwriteBlocks.length} 件` : '') +
+          ` / スキップ ${result.skipBlocks.length} 件)`,
       )
       handleClose()
     } catch (e) {
@@ -60,11 +75,11 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="プラン取り込み(追加のみ)">
+    <Modal open={open} onClose={handleClose} title="プラン取り込み">
       <div className="flex flex-col gap-3">
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          既存の記録は変更・削除されません。まだ記録がない日付×種目×タグの組み合わせにだけ、
-          セットを追加します
+          まだ記録がない日付×種目×タグの組み合わせにセットを追加します。既に記録がある組み合わせは
+          既定ではスキップされますが、「重複分を上書きする」を選ぶと確認のうえ置き換えられます
         </p>
 
         {!preview && (
@@ -130,16 +145,40 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
               </ul>
             </div>
 
-            {preview.skipBlocks.length > 0 && (
+            {(preview.skipBlocks.length > 0 || preview.overwriteBlocks.length > 0) && (
               <div>
-                <p className="mb-1 text-xs font-bold text-slate-400">
-                  スキップ(既に記録あり) {preview.skipBlocks.length} 件
-                </p>
-                <ul className="max-h-24 overflow-y-auto text-xs text-slate-400">
-                  {preview.skipBlocks.map((b, i) => (
-                    <li key={i}>{blockLabel(b)}</li>
-                  ))}
-                </ul>
+                <label className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={overwrite}
+                    onChange={(e) => void handleToggleOverwrite(e.target.checked)}
+                    disabled={busy}
+                  />
+                  重複分を上書きする
+                </label>
+                {overwrite ? (
+                  <>
+                    <p className="mb-1 text-xs font-bold text-amber-600 dark:text-amber-400">
+                      上書き(既存セットを削除して置き換え) {preview.overwriteBlocks.length} 件
+                    </p>
+                    <ul className="max-h-24 overflow-y-auto text-xs text-amber-600 dark:text-amber-400">
+                      {preview.overwriteBlocks.map((b, i) => (
+                        <li key={i}>{blockLabel(b)}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-1 text-xs font-bold text-slate-400">
+                      スキップ(既に記録あり) {preview.skipBlocks.length} 件
+                    </p>
+                    <ul className="max-h-24 overflow-y-auto text-xs text-slate-400">
+                      {preview.skipBlocks.map((b, i) => (
+                        <li key={i}>{blockLabel(b)}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </div>
             )}
 
@@ -156,7 +195,11 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
                 type="button"
                 className="flex-1 rounded-lg bg-sky-600 py-2.5 text-sm font-bold text-white active:bg-sky-700 disabled:opacity-40"
                 onClick={() => void handleApply()}
-                disabled={busy || preview.errors.length > 0 || preview.addBlocks.length === 0}
+                disabled={
+                  busy ||
+                  preview.errors.length > 0 ||
+                  (preview.addBlocks.length === 0 && preview.overwriteBlocks.length === 0)
+                }
               >
                 取り込む
               </button>

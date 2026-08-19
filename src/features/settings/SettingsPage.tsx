@@ -448,10 +448,11 @@ export function SettingsPage() {
       </section>
 
       <section className="rounded-xl border border-sky-200 bg-sky-50 p-3 shadow-sm dark:border-sky-900 dark:bg-sky-950">
-        <h2 className="text-sm font-bold">プラン取り込み(追加のみ)</h2>
+        <h2 className="text-sm font-bold">プラン取り込み</h2>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          既存の記録は変更・削除しません。まだ記録がない日付×種目×タグにだけ、外部で作成した
-          トレーニングプランのセットを追加します(上の「復元する」とは別の、非破壊的な取り込みです)
+          外部で作成したトレーニングプランのセットを取り込みます(上の「復元する」とは別の経路)。
+          既定ではまだ記録がない日付×種目×タグにだけ追加し、既存の組み合わせはスキップします。
+          確認のうえ上書きすることも選べます
         </p>
         <button
           type="button"
