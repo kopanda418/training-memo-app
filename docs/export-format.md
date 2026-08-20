@@ -95,7 +95,8 @@ interface WorkoutSet {
   rpe?: number // RPE (Rate of Perceived Exertion, 例: 8.5)
   attributes?: string[] // セット属性(例: ["左", "フル"])。なければ undefined または []
   unit: 'kg' | 'lbs' // 重量単位
-  memo?: string // セットメモ
+  memo?: string // セットメモ(ユーザーが書く欄。プラン取り込みは書き換えない)
+  planMemo?: string // プラン取り込みが書いたそのセットの指示(読み取り専用表示。v1.0.24〜/ADR-013)
   orderInDay: number // 日内の表示順(0 始まり)
   createdAt: number // Unix ミリ秒
 
@@ -196,7 +197,8 @@ interface BlockNote {
   date: string // "YYYY-MM-DD" (days.date と一致)
   exerciseId: string // exercises.id への参照
   tagId: string // tags.id への参照。タグなしは "" (空文字, NO_TAG)
-  note: string // ブロックの感想メモ
+  note?: string // ブロックの感想メモ(ユーザーが書く欄)。planNote だけの行では undefined
+  planNote?: string // プラン取り込みが書いた種目単位の指示(読み取り専用表示。v1.0.24〜/ADR-013)
 }
 ```
 
@@ -206,6 +208,11 @@ interface BlockNote {
 - 種目×タグブロック単位 = `blockNotes[].note`(このテーブル)
 - その日全体 = `days[].note`
 - ブロックメモはタグ変更・種目変更・別日コピー/移動でキーを追従させ、ブロックが空になると孤児レコードを削除する(詳細は `docs/architecture.md` / ADR-011)
+
+**プラン欄とユーザー欄の区別(ADR-013):** `sets[].planMemo` と `blockNotes[].planNote` は
+プラン取り込みが書いた指示(アプリ上は読み取り専用)、`sets[].memo` / `blockNotes[].note` /
+`days[].note` はユーザーが書いた内容。外部プロジェクトがこのファイルを読んで実績を分析する場合、
+ユーザーの生の声は後者の 3 つに入っている
 
 ---
 

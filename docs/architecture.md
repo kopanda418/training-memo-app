@@ -46,9 +46,11 @@ sets: 'id, date, [exerciseId+tagId], exerciseId'
 // { id, date, exerciseId, tagId (なし時は '' 固定),
 //   weight(isBodyweight 時は加重分), isBodyweight?, reps, targetReps?,
 //   attribute?(セット属性・任意テキスト), isAssisted(deprecated→attribute),
-//   unit ('kg'|'lbs'), memo?(セット単位の1行メモ), orderInDay, createdAt }
+//   unit ('kg'|'lbs'), memo?(ユーザーが書くセット単位の1行メモ),
+//   planMemo?(プラン取り込みが書く指示。読み取り専用表示。ADR-013), orderInDay, createdAt }
 blockNotes: '[date+exerciseId+tagId], date' // v7 追加
-// { date, exerciseId, tagId, note } … 種目×タグブロックの感想メモ。
+// { date, exerciseId, tagId, note?(ユーザーの感想), planNote?(プラン取り込みが書く指示。ADR-013) }
+// … 種目×タグブロックのメモ。
 //   ブロックは永続レコードを持たないため別立て。タグ/種目変更・別日移動でキーを追従(ADR-011)
 locations: 'id, name'
 // { id, name, lastUsedAt, sortOrder } … 場所マスタ(v6: sortOrder 追加)
@@ -69,6 +71,10 @@ settings: 'key'
 - **MAX 記録はテーブルに持たず都度計算。** データ量が数万件規模なので `[exerciseId+tagId]` インデックスで十分速い。キャッシュテーブルはコピー/移動・編集・削除との整合性維持コストの方が高い(遅くなったら導入を検討 → decisions.md)
 - **日付間コピー/移動**は `sets` の `date` 書き換え(移動)/複製(コピー)+ 対象日の `days` レコード作成。1 トランザクションで行う
 - **感想メモは 3 粒度**(ADR-011)。セット単位=`sets.memo`、種目×タグブロック単位=`blockNotes` テーブル、その日全体=`days.note`。ブロックメモはタグ変更(`changeBlockTag`)・種目変更(`changeBlockExercise`)・別日コピー/移動(`transferSets`)でキーを追従させ(衝突時は改行連結)、ブロックが空になれば(`deleteSet`)孤児を削除する。日全体メモは日付に紐づき、`transferSets` では移動しない
+- **プラン欄とユーザー欄は別フィールド**(ADR-013)。プラン取り込みが書くのは `sets.planMemo` と
+  `blockNotes.planNote` だけで、ユーザーが書く `sets.memo` / `blockNotes.note` / `days.note` には
+  触れない。上書き取り込み時も `sets.memo` はセット順で新しいセットへ引き継がれる。プラン欄は
+  記録画面で「予定」ラベル付きの読み取り専用として表示する
 - スキーマ変更は必ず `db.version(n+1).stores(...).upgrade(...)` を追加し、この表を同時更新する
 
 ## 画面構成

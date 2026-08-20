@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from './db'
 import { applyPlanImport, previewPlanImport } from './planImport'
+import { setBlockNote, updateSet } from './repository'
 import { NO_TAG } from './types'
 import type { PlanImportFile } from '../lib/planImport'
 
@@ -53,7 +54,9 @@ describe('applyPlanImport', () => {
     expect(sets[0].reps).toBe(0) // 予定(未実施)として reps: 0
     expect(sets[0].exerciseId).toBe(exercise!.id)
     expect(sets[0].tagId).toBe(tag!.id)
-    expect(sets[0].memo).toBe('目標 5reps')
+    // プランの指示は planMemo(読み取り専用のプラン欄)へ。ユーザー欄 memo は空のまま(ADR-013)
+    expect(sets[0].planMemo).toBe('目標 5reps')
+    expect(sets[0].memo).toBeUndefined()
   })
 
   it('デフォルトにない部位を指定した新規種目は、部位マスタも自動作成される(未登録だと種目選択タブに出ず選べなくなるため)', async () => {
@@ -229,6 +232,85 @@ describe('applyPlanImport', () => {
     const sets = await db.sets.where('date').equals('2026-07-14').sortBy('orderInDay')
     expect(sets[0].isWarmup).toBe(true)
     expect(sets[1].isWarmup).toBeUndefined()
+  })
+
+  it('種目の note は blockNotes.planNote へ入り、ユーザーの種目メモは書き換えない', async () => {
+    const file = planFile([
+      {
+        date: '2026-07-14',
+        items: [
+          {
+            exercise: 'ベンチプレス',
+            bodyPart: '胸',
+            note: 'フォーム: 肩甲骨を寄せる / 中止: 挙上速度が落ちたら終了',
+            sets: [{ weight: 80, memo: '5回 RPE8' }],
+          },
+        ],
+      },
+    ])
+    await applyPlanImport(file)
+    const exercise = await db.exercises.where('name').equals('ベンチプレス').first()
+    const note = await db.blockNotes.get(['2026-07-14', exercise!.id, NO_TAG])
+    expect(note?.planNote).toBe('フォーム: 肩甲骨を寄せる / 中止: 挙上速度が落ちたら終了')
+    expect(note?.note).toBeUndefined()
+  })
+
+  it('上書き取り込みでも、ユーザーが書いたセットメモ・種目メモは残る(ADR-013)', async () => {
+    await applyPlanImport(
+      planFile([
+        {
+          date: '2026-07-14',
+          items: [
+            {
+              exercise: 'ベンチプレス',
+              bodyPart: '胸',
+              note: '旧プラン: 中止条件なし',
+              sets: [
+                { weight: 80, memo: '5回 RPE8' },
+                { weight: 80, memo: '5回 RPE8' },
+              ],
+            },
+          ],
+        },
+      ]),
+    )
+
+    // ジムでユーザーが書き込む
+    const exercise = await db.exercises.where('name').equals('ベンチプレス').first()
+    const before = await db.sets.where('date').equals('2026-07-14').sortBy('orderInDay')
+    await updateSet(before[0].id, { memo: '肩が痛い', reps: 5 })
+    await setBlockNote('2026-07-14', exercise!.id, NO_TAG, '全体的に重かった')
+
+    // 同じブロックのプランを上書きで取り込み直す
+    await applyPlanImport(
+      planFile([
+        {
+          date: '2026-07-14',
+          items: [
+            {
+              exercise: 'ベンチプレス',
+              note: '新プラン: 速度低下で終了',
+              sets: [
+                { weight: 85, memo: '3回 RPE9' },
+                { weight: 85, memo: '3回 RPE9' },
+              ],
+            },
+          ],
+        },
+      ]),
+      { overwrite: true },
+    )
+
+    const after = await db.sets.where('date').equals('2026-07-14').sortBy('orderInDay')
+    expect(after).toHaveLength(2)
+    expect(after.map((s) => s.weight)).toEqual([85, 85])
+    expect(after[0].planMemo).toBe('3回 RPE9')
+    expect(after[0].memo).toBe('肩が痛い') // ユーザーの書き込みはセット順で引き継ぐ
+    expect(after[1].memo).toBeUndefined()
+
+    const note = await db.blockNotes.get(['2026-07-14', exercise!.id, NO_TAG])
+    expect(note?.note).toBe('全体的に重かった') // ユーザー欄はそのまま
+    expect(note?.planNote).toBe('新プラン: 速度低下で終了') // プラン欄だけ差し替わる
   })
 })
 

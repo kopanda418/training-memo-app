@@ -203,8 +203,9 @@ export async function getBlockNote(
 }
 
 /**
- * ブロック(種目×タグ)の感想メモを設定する。
- * 空文字なら該当行を削除、非空なら put する。
+ * ブロック(種目×タグ)の感想メモ(ユーザー欄 note)を設定する。
+ * 空文字なら note を落とし、プラン欄(planNote)も無ければ行ごと削除する。
+ * プラン欄は決して書き換えない(ADR-013)。
  */
 export async function setBlockNote(
   date: string,
@@ -213,11 +214,18 @@ export async function setBlockNote(
   note: string,
 ): Promise<void> {
   const trimmed = note.trim()
-  if (!trimmed) {
-    await db.blockNotes.delete([date, exerciseId, tagId])
-    return
-  }
-  await db.blockNotes.put({ date, exerciseId, tagId, note: trimmed })
+  await db.transaction('rw', [db.blockNotes], async () => {
+    const existing = await db.blockNotes.get([date, exerciseId, tagId])
+    if (!trimmed) {
+      if (existing?.planNote) {
+        await db.blockNotes.put({ ...existing, note: undefined })
+      } else {
+        await db.blockNotes.delete([date, exerciseId, tagId])
+      }
+      return
+    }
+    await db.blockNotes.put({ ...existing, date, exerciseId, tagId, note: trimmed })
+  })
 }
 
 /** 指定日の全ブロックメモ(履歴日サマリ用) */
@@ -243,8 +251,13 @@ async function rekeyBlockNote(
   const src = await db.blockNotes.get(from)
   if (!src) return
   const dest = await db.blockNotes.get(to)
-  const merged = mergeNotes(dest?.note, src.note)
-  await db.blockNotes.put({ date: to[0], exerciseId: to[1], tagId: to[2], note: merged! })
+  await db.blockNotes.put({
+    date: to[0],
+    exerciseId: to[1],
+    tagId: to[2],
+    note: mergeNotes(dest?.note, src.note),
+    planNote: mergeNotes(dest?.planNote, src.planNote),
+  })
   if (!copy) await db.blockNotes.delete(from)
 }
 

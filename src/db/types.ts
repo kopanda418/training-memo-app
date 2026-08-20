@@ -53,7 +53,10 @@ export interface BlockNote {
   exerciseId: string
   /** タグなしは NO_TAG ('') */
   tagId: string
-  note: string
+  /** ユーザーが書く欄(実施時の感想・気づき)。プラン取り込みは決して書き換えない(ADR-013) */
+  note?: string
+  /** プラン取り込みが書く欄(この種目の指示: フォーム注意点・中止条件など)。UI は読み取り専用 */
+  planNote?: string
 }
 
 export interface WorkoutSet {
@@ -82,7 +85,10 @@ export interface WorkoutSet {
   /** @deprecated 属性に置き換え(G3)。過去データ互換のため残す */
   isAssisted: boolean
   unit: WeightUnit
+  /** ユーザーが書く欄。プラン取り込みは決して書き換えない(ADR-013) */
   memo?: string
+  /** プラン取り込みが書く欄(このセットの指示。例: 「5回 RPE8」)。UI は読み取り専用 */
+  planMemo?: string
   /** 日内の表示順 */
   orderInDay: number
   createdAt: number

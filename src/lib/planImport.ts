@@ -11,6 +11,11 @@ export interface PlanSetInput {
   isBodyweight?: boolean
   /** ウォームアップセットか(週間集計・MAX判定から除外される) */
   isWarmup?: boolean
+  /**
+   * このセットの指示(短い1行。例: 「5回 RPE8」)。
+   * db では `sets.planMemo`(読み取り専用のプラン欄)に入る。ユーザーが書く `sets.memo` とは別枠で、
+   * 取り込み側がユーザーの書き込みを消すことはない(ADR-013)
+   */
   memo?: string
 }
 
@@ -21,6 +26,12 @@ export interface PlanItemInput {
   bodyPart?: string
   /** タグ名。省略でタグなし */
   tag?: string
+  /**
+   * この種目の指示(フォーム注意点・中止条件など、全セット共通の内容)。
+   * db では `blockNotes.planNote`(読み取り専用のプラン欄)に入る。ユーザーが書く
+   * 種目メモ(`blockNotes.note`)は取り込みで書き換えない(ADR-013)
+   */
+  note?: string
   sets: PlanSetInput[]
 }
 
@@ -98,6 +109,8 @@ export interface PlanBlock {
   date: string
   exerciseName: string
   tagName?: string
+  /** 種目単位のプラン指示(blockNotes.planNote へ書く) */
+  note?: string
   sets: PlanSetInput[]
 }
 
@@ -198,12 +211,13 @@ export function computePlanActions(
       const hasConflict =
         canCheckSkip && existing.setKeys.has(setKeyOf(date, existingExercise!.id, existingTagId!))
 
+      const note = item.note?.trim() || undefined
       if (hasConflict && !overwrite) {
         actions.skipBlocks.push({ date, exerciseName, tagName })
       } else if (hasConflict && overwrite) {
-        actions.overwriteBlocks.push({ date, exerciseName, tagName, sets: item.sets })
+        actions.overwriteBlocks.push({ date, exerciseName, tagName, note, sets: item.sets })
       } else {
-        actions.addBlocks.push({ date, exerciseName, tagName, sets: item.sets })
+        actions.addBlocks.push({ date, exerciseName, tagName, note, sets: item.sets })
       }
     }
   }

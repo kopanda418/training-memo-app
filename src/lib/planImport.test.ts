@@ -240,6 +240,26 @@ describe('computePlanActions', () => {
     expect(actions.newDays).toEqual([{ date: '2026-07-14', location: undefined }])
   })
 
+  it('種目の note(プラン指示)をブロックへ引き渡し、前後の空白は落とす', () => {
+    const file = baseFile([
+      {
+        date: '2026-07-14',
+        items: [
+          {
+            exercise: 'ベンチプレス',
+            bodyPart: '胸',
+            note: '  中止: 挙上速度が落ちたら終了  ',
+            sets: [{ weight: 80 }],
+          },
+          { exercise: 'スクワット', bodyPart: '脚', sets: [{ weight: 100 }] },
+        ],
+      },
+    ])
+    const actions = computePlanActions(file, emptyExisting())
+    expect(actions.addBlocks[0].note).toBe('中止: 挙上速度が落ちたら終了')
+    expect(actions.addBlocks[1].note).toBeUndefined()
+  })
+
   it('deduplicates a new exercise referenced on multiple days', () => {
     const file = baseFile([
       {

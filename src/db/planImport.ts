@@ -67,7 +67,7 @@ export async function applyPlanImport(
   const unit = (await getSetting<WeightUnit>('defaultUnit')) || 'kg'
   return db.transaction(
     'rw',
-    [db.exercises, db.tags, db.bodyParts, db.days, db.sets, db.locations],
+    [db.exercises, db.tags, db.bodyParts, db.days, db.sets, db.locations, db.blockNotes],
     async () => {
       const [exercises, tags, bodyParts] = await Promise.all([
         db.exercises.toArray(),
@@ -119,7 +119,9 @@ export async function applyPlanImport(
         await db.days.add({ date: d.date, locationId })
       }
 
-      // 上書き対象ブロックは、新セットを追加する前に既存セットを削除しておく
+      // 上書き対象ブロックは、新セットを追加する前に既存セットを削除しておく。
+      // このときユーザーが書いたセットメモ(sets.memo)はセット順で引き継ぐ(ADR-013)
+      const carriedMemos = new Map<string, (string | undefined)[]>()
       for (const block of actions.overwriteBlocks) {
         const exerciseId = exerciseIdByName.get(block.exerciseName)
         const tagId = block.tagName ? tagIdByName.get(block.tagName) : NO_TAG
@@ -129,6 +131,11 @@ export async function applyPlanImport(
           .equals(block.date)
           .filter((s) => s.exerciseId === exerciseId && s.tagId === tagId)
           .toArray()
+        oldSets.sort((a, b) => a.orderInDay - b.orderInDay)
+        carriedMemos.set(
+          setKeyOf(block.date, exerciseId, tagId),
+          oldSets.map((s) => s.memo),
+        )
         await db.sets.bulkDelete(oldSets.map((s) => s.id))
       }
 
@@ -148,8 +155,9 @@ export async function applyPlanImport(
         const exerciseId = exerciseIdByName.get(block.exerciseName)
         const tagId = block.tagName ? tagIdByName.get(block.tagName) : NO_TAG
         if (!exerciseId || tagId === undefined) continue
+        const carried = carriedMemos.get(setKeyOf(block.date, exerciseId, tagId))
         const newSets: WorkoutSet[] = []
-        for (const s of block.sets) {
+        for (const [i, s] of block.sets.entries()) {
           newSets.push({
             id: crypto.randomUUID(),
             date: block.date,
@@ -160,13 +168,35 @@ export async function applyPlanImport(
             isWarmup: s.isWarmup,
             reps: s.reps ?? 0,
             unit: s.unit ?? unit,
-            memo: s.memo,
+            // memo はユーザー欄。プランの指示は planMemo に入れる(ADR-013)
+            memo: carried?.[i],
+            planMemo: s.memo,
             isAssisted: false,
             orderInDay: await nextOrder(block.date),
             createdAt: now,
           })
         }
         await db.sets.bulkAdd(newSets)
+
+        // 種目単位の指示は blockNotes.planNote へ。ユーザーが書いた note には触れない
+        const noteKey: [string, string, string] = [block.date, exerciseId, tagId]
+        const existingNote = await db.blockNotes.get(noteKey)
+        if (block.note) {
+          await db.blockNotes.put({
+            ...existingNote,
+            date: block.date,
+            exerciseId,
+            tagId,
+            planNote: block.note,
+          })
+        } else if (existingNote?.planNote) {
+          // このブロックのプランを取り込み直したので、古い指示は残さない
+          if (existingNote.note) {
+            await db.blockNotes.put({ ...existingNote, planNote: undefined })
+          } else {
+            await db.blockNotes.delete(noteKey)
+          }
+        }
       }
 
       return actions

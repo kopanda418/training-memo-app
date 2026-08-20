@@ -199,6 +199,17 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
             )}
             <span className="shrink-0 text-xs text-slate-400">回</span>
           </div>
+          {/* プラン欄(読み取り専用)。取り込んだ指示をユーザーのメモと混ぜない(ADR-013) */}
+          {set.planMemo && (
+            <div className="mt-0.5 flex items-start gap-1 pl-5">
+              <span className="mt-px shrink-0 rounded bg-sky-100 px-1 text-[10px] font-bold text-sky-700 dark:bg-sky-900/60 dark:text-sky-300">
+                予定
+              </span>
+              <p className="min-w-0 flex-1 whitespace-pre-wrap text-xs leading-snug text-sky-700 dark:text-sky-300">
+                {set.planMemo}
+              </p>
+            </div>
+          )}
           {/* メモ行(全幅で見やすく)と属性+1RM 行は分ける */}
           <div className="mt-0.5 flex items-center gap-1 pl-5">
             <CopyBtn
