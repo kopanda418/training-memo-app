@@ -166,6 +166,7 @@ export async function applyPlanImport(
             weight: s.weight,
             isBodyweight: s.isBodyweight,
             isWarmup: s.isWarmup,
+            attributes: s.attributes,
             reps: s.reps ?? 0,
             unit: s.unit ?? unit,
             // memo はユーザー欄。プランの指示は planMemo に入れる(ADR-013)

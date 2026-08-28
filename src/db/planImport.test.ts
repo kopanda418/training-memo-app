@@ -234,6 +234,25 @@ describe('applyPlanImport', () => {
     expect(sets[1].isWarmup).toBeUndefined()
   })
 
+  it('attributes を指定するとセット属性として作成される', async () => {
+    const file = planFile([
+      {
+        date: '2026-07-14',
+        items: [
+          {
+            exercise: 'ケーブルフライ',
+            bodyPart: '胸',
+            sets: [{ weight: 20, attributes: ['左', 'フル'] }, { weight: 20 }],
+          },
+        ],
+      },
+    ])
+    await applyPlanImport(file)
+    const sets = await db.sets.where('date').equals('2026-07-14').sortBy('orderInDay')
+    expect(sets[0].attributes).toEqual(['左', 'フル'])
+    expect(sets[1].attributes).toBeUndefined()
+  })
+
   it('種目の note は blockNotes.planNote へ入り、ユーザーの種目メモは書き換えない', async () => {
     const file = planFile([
       {

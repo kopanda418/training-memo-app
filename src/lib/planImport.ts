@@ -11,6 +11,8 @@ export interface PlanSetInput {
   isBodyweight?: boolean
   /** ウォームアップセットか(週間集計・MAX判定から除外される) */
   isWarmup?: boolean
+  /** セット属性(任意テキスト、複数可。例: 「左」「フル」「DS」。既存の属性バンクと name 一致で照合されない単純な文字列としてそのまま保存される) */
+  attributes?: string[]
   /**
    * このセットの指示(短い1行。例: 「5回 RPE8」)。
    * db では `sets.planMemo`(読み取り専用のプラン欄)に入る。ユーザーが書く `sets.memo` とは別枠で、

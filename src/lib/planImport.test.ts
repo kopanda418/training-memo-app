@@ -260,6 +260,23 @@ describe('computePlanActions', () => {
     expect(actions.addBlocks[1].note).toBeUndefined()
   })
 
+  it('セットの attributes をブロックへそのまま引き渡す', () => {
+    const file = baseFile([
+      {
+        date: '2026-07-14',
+        items: [
+          {
+            exercise: 'ケーブルフライ',
+            bodyPart: '胸',
+            sets: [{ weight: 20, attributes: ['左', 'フル'] }],
+          },
+        ],
+      },
+    ])
+    const actions = computePlanActions(file, emptyExisting())
+    expect(actions.addBlocks[0].sets[0].attributes).toEqual(['左', 'フル'])
+  })
+
   it('deduplicates a new exercise referenced on multiple days', () => {
     const file = baseFile([
       {

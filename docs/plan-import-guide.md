@@ -62,6 +62,8 @@ interface PlanImportFile {
         reps?: number // 省略時 0 = 「未実施(予定)」。週間集計・MAX判定から自動除外される
         isBodyweight?: boolean
         isWarmup?: boolean // ウォームアップセットにする(省略時 false)。週間集計・MAX判定から除外される
+        attributes?: string[] // セット属性(任意テキスト、複数可。例: ["左","フル","DS"])。
+        // 記録画面のセット属性チップとして表示される。既存の属性バンクと突き合わせはせず文字列をそのまま保存
         memo?: string // このセットのプラン指示(短い1行)。書き方は下記ルール参照
       }[]
     }[]
@@ -88,7 +90,7 @@ interface PlanImportFile {
             { "weight": 60, "reps": 8, "isWarmup": true, "memo": "アップ" },
             { "weight": 82.5, "memo": "5回 RPE8" },
             { "weight": 82.5, "memo": "5回 RPE8" },
-            { "weight": 82.5, "memo": "5回 限界なら4回で可" }
+            { "weight": 82.5, "attributes": ["ドロップセット"], "memo": "5回 限界なら4回で可" }
           ]
         }
       ]
