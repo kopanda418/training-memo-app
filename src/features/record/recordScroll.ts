@@ -28,6 +28,18 @@ export function getMainScrollTop(): number {
 }
 
 /**
+ * 表示内容が大きく縮む操作(日付送りなど)の「直前」に呼び、先頭へ戻す。
+ * 下までスクロールした状態で中身が縮むと、ブラウザが scrollTop を強制的に
+ * 補正するが、iOS Safari はこのとき再描画せず画面が背景色のまま(暗転)になる
+ * ことがある(#1)。中身が縮む前に 0 へ戻しておけば補正自体が起きない。
+ * React の再描画は onClick 完了後なので、ここでは DOM はまだ縮む前の高さ。
+ */
+export function resetMainScrollTop(): void {
+  const main = document.querySelector('main')
+  if (main && main.scrollTop !== 0) main.scrollTop = 0
+}
+
+/**
  * RecordPage 専用: 履歴画面から POP(‹ 記録 / スワイプバック)で戻ってきた時に、
  * データ描画後(ready)へ一度だけスクロール位置を復元する。
  * タブ経由(PUSH)では復元せず、保存値のクリアだけ行う。

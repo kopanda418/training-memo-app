@@ -10,7 +10,12 @@ import { DayNoteRow } from './DayNoteRow'
 import { ExerciseBlock } from './ExerciseBlock'
 import { ExercisePicker } from './ExercisePicker'
 import { LocationRow } from './LocationRow'
-import { getMainScrollTop, saveRecordScroll, useRestoreRecordScroll } from './recordScroll'
+import {
+  getMainScrollTop,
+  resetMainScrollTop,
+  saveRecordScroll,
+  useRestoreRecordScroll,
+} from './recordScroll'
 import { TemplateModal } from './TemplateModal'
 
 interface BlockKey {
@@ -24,6 +29,8 @@ export function RecordPage() {
   const today = todayString()
   const date = params.get('date') ?? today
   const setDate = (d: string) => {
+    // 中身が縮む前に先頭へ戻す(下端で日付を送ると iOS で暗転する #1 対策)
+    resetMainScrollTop()
     setParams(d === today ? {} : { date: d }, { replace: true })
   }
 
