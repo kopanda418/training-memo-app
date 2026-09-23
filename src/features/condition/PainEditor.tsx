@@ -12,6 +12,7 @@ import {
   PAIN_TIMINGS,
   SIDE_LABELS,
   getPainArea,
+  isHeadacheWarning,
   nrsHint,
   painTitle,
   sideOptions,
@@ -124,6 +125,13 @@ export function PainEditor({ initial, onClose }: PainEditorProps) {
             onChange={(next) => set('onset', next[0])}
           />
         </>
+      )}
+
+      {isHeadacheWarning(draft.area, draft.intensity, draft.onset) && (
+        <p className="mt-3 rounded-lg bg-red-50 p-2 text-xs leading-relaxed text-red-700 dark:bg-red-950/50 dark:text-red-300">
+          ⚠️ 運動中などに突然起きた頭痛や、経験したことのない強い頭痛は、脳の血管のトラブルの
+          可能性があります。記録より先に、早めに医療機関(脳神経外科など)を受診してください。
+        </p>
       )}
 
       <FieldLabel>関連しそうな種目(この日の記録から)</FieldLabel>

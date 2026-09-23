@@ -30,6 +30,13 @@ const E = (cx: number, cy: number, rx: number, ry: number): Geom => ({
 // 描画順 = 重なり順(後ろほど上。背骨の帯は左右の半分より後に置いてタップを優先させる)
 const SHAPES: ShapeDef[] = [
   {
+    area: 'head',
+    layout: 'center',
+    geom: E(100, 24, 17, 17),
+    front: 'head.frontal',
+    back: 'head.occipital',
+  },
+  {
     area: 'neck',
     layout: 'center',
     geom: R(90, 44, 20, 14),
@@ -230,7 +237,6 @@ export function BodyMap({ view, marked, onSelect }: BodyMapProps) {
       <text x="170" y="20" className="fill-slate-400 text-[11px]" textAnchor="middle">
         {view === 'front' ? '左' : '右'}
       </text>
-      <circle cx="100" cy="24" r="17" className="fill-slate-200 dark:fill-slate-700" />
       {items.map((it) => {
         const level = levelOf(it.area, it.side)
         const common = {

@@ -261,49 +261,52 @@ interface PainRecord {
 - `intensity: 0` の行は「その日は痛くなかった(回復)」の記録。痛みの経過を追うときの終点になる
 - 同じ `area + side` の行を日付順に並べると、その痛みの経過になる(アプリの「痛みの経過」画面と同じまとめ方)
 - `onset` は基本的にその部位×左右を初めて記録した日だけに入る
+- `area: "head"`(頭、v1.0.28〜)は頭痛の分類で使う場所の区分(おでこ・こめかみ・頭頂部・後頭部・目の奥・頭全体)と顎関節を持つ
 - `regionIds` / `qualities` / `timings` / `movements` / `exerciseIds` は未選択なら空配列(`[]`)
 
 #### コード一覧
 
 **部位(`area` / `regionIds`)** — `regionIds` は `<area>.<細部>` 形式
 
-| `area`      | 部位             | 左右の選択肢            | `regionIds`(細かい場所)                                                                                                                                                                |
-| ----------- | ---------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `neck`      | 首(頸部)         | C=中央 R=右 L=左 B=両側 | `neck.posterior` 後ろ(うなじ)<br>`neck.lateral` 横<br>`neck.base` 付け根〜肩の上(僧帽筋上部)<br>`neck.anterior` 前                                                                     |
-| `shoulder`  | 肩               | R=右 L=左 B=両側        | `shoulder.anterior` 前側<br>`shoulder.lateral` 外側(三角筋)<br>`shoulder.posterior` 後ろ側<br>`shoulder.superior` 上(肩鎖関節のあたり)<br>`shoulder.deep` 奥の方(場所がはっきりしない) |
-| `upperArm`  | 上腕             | R=右 L=左 B=両側        | `upperArm.anterior` 前側(力こぶ・上腕二頭筋)<br>`upperArm.posterior` 後ろ側(上腕三頭筋)                                                                                                |
-| `elbow`     | 肘               | R=右 L=左 B=両側        | `elbow.lateral` 外側(外側上顆・テニス肘の場所)<br>`elbow.medial` 内側(内側上顆・ゴルフ肘の場所)<br>`elbow.posterior` 後ろ(肘頭・肘の先)<br>`elbow.anterior` 前(肘の内側のくぼみ)       |
-| `forearm`   | 前腕             | R=右 L=左 B=両側        | `forearm.flexor` 手のひら側<br>`forearm.extensor` 手の甲側                                                                                                                             |
-| `wrist`     | 手首             | R=右 L=左 B=両側        | `wrist.radial` 親指側(橈側)<br>`wrist.ulnar` 小指側(尺側)<br>`wrist.dorsal` 甲側<br>`wrist.palmar` 手のひら側                                                                          |
-| `hand`      | 手・指           | R=右 L=左 B=両側        | `hand.thumb` 親指<br>`hand.fingers` 指(親指以外)<br>`hand.palm` 手のひら<br>`hand.dorsum` 手の甲                                                                                       |
-| `chest`     | 胸               | C=中央 R=右 L=左 B=両側 | `chest.pectoral` 胸の筋肉(大胸筋)<br>`chest.sternum` 胸の中央(胸骨)<br>`chest.ribs` 肋骨・脇                                                                                           |
-| `abdomen`   | お腹             | C=中央 R=右 L=左 B=両側 | `abdomen.upper` 上の方<br>`abdomen.lower` 下の方<br>`abdomen.side` 脇腹                                                                                                                |
-| `upperBack` | 背中(胸椎部)     | C=中央 R=右 L=左 B=両側 | `upperBack.spine` 背骨そのもの(胸椎)<br>`upperBack.paraspinal` 背骨のすぐ横の筋肉<br>`upperBack.interscapular` 肩甲骨の間<br>`upperBack.scapula` 肩甲骨まわり                          |
-| `lowBack`   | 腰(腰椎部)       | C=中央 R=右 L=左 B=両側 | `lowBack.spine` 背骨そのもの(腰椎)<br>`lowBack.paraspinal` 背骨のすぐ横の筋肉<br>`lowBack.sacroiliac` 骨盤の付け根(仙腸関節)<br>`lowBack.sacrum` お尻の割れ目の上(仙骨・尾骨)          |
-| `hip`       | 股関節           | R=右 L=左 B=両側        | `hip.anterior` 前(脚の付け根・鼠径部)<br>`hip.lateral` 外側(大転子のあたり)<br>`hip.posterior` 後ろ<br>`hip.deep` 奥の方(場所がはっきりしない)                                         |
-| `buttock`   | お尻             | R=右 L=左 B=両側        | `buttock.gluteal` お尻の筋肉(臀筋)<br>`buttock.ischial` 座ると当たる骨(坐骨)                                                                                                           |
-| `thigh`     | 太もも           | R=右 L=左 B=両側        | `thigh.anterior` 前(大腿四頭筋)<br>`thigh.posterior` 裏(ハムストリングス)<br>`thigh.medial` 内側(内転筋)<br>`thigh.lateral` 外側(腸脛靭帯)                                             |
-| `knee`      | 膝               | R=右 L=左 B=両側        | `knee.anterior` 前(膝のお皿まわり)<br>`knee.infrapatellar` お皿のすぐ下(膝蓋腱)<br>`knee.medial` 内側<br>`knee.lateral` 外側<br>`knee.posterior` 裏(膝窩)                              |
-| `lowerLeg`  | すね・ふくらはぎ | R=右 L=左 B=両側        | `lowerLeg.anterior` すね(前)<br>`lowerLeg.medial` すねの内側(シンスプリントの場所)<br>`lowerLeg.posterior` ふくらはぎ                                                                  |
-| `ankle`     | 足首             | R=右 L=左 B=両側        | `ankle.lateral` 外側(外くるぶしのまわり)<br>`ankle.medial` 内側(内くるぶしのまわり)<br>`ankle.anterior` 前<br>`ankle.posterior` 後ろ(アキレス腱)                                       |
-| `foot`      | 足               | R=右 L=左 B=両側        | `foot.plantar` 足の裏<br>`foot.heel` かかと<br>`foot.dorsum` 足の甲<br>`foot.toes` 足の指                                                                                              |
+| `area`      | 部位             | 左右の選択肢            | `regionIds`(細かい場所)                                                                                                                                                                                                                             |
+| ----------- | ---------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `head`      | 頭               | C=中央 R=右 L=左 B=両側 | `head.frontal` おでこ(前頭部)<br>`head.temporal` こめかみ(側頭部)<br>`head.parietal` てっぺん(頭頂部)<br>`head.occipital` 後頭部(首との境目あたり)<br>`head.orbital` 目の奥・目のまわり<br>`head.whole` 頭全体<br>`head.jaw` 顎(顎関節・食いしばり) |
+| `neck`      | 首(頸部)         | C=中央 R=右 L=左 B=両側 | `neck.posterior` 後ろ(うなじ)<br>`neck.lateral` 横<br>`neck.base` 付け根〜肩の上(僧帽筋上部)<br>`neck.anterior` 前                                                                                                                                  |
+| `shoulder`  | 肩               | R=右 L=左 B=両側        | `shoulder.anterior` 前側<br>`shoulder.lateral` 外側(三角筋)<br>`shoulder.posterior` 後ろ側<br>`shoulder.superior` 上(肩鎖関節のあたり)<br>`shoulder.deep` 奥の方(場所がはっきりしない)                                                              |
+| `upperArm`  | 上腕             | R=右 L=左 B=両側        | `upperArm.anterior` 前側(力こぶ・上腕二頭筋)<br>`upperArm.posterior` 後ろ側(上腕三頭筋)                                                                                                                                                             |
+| `elbow`     | 肘               | R=右 L=左 B=両側        | `elbow.lateral` 外側(外側上顆・テニス肘の場所)<br>`elbow.medial` 内側(内側上顆・ゴルフ肘の場所)<br>`elbow.posterior` 後ろ(肘頭・肘の先)<br>`elbow.anterior` 前(肘の内側のくぼみ)                                                                    |
+| `forearm`   | 前腕             | R=右 L=左 B=両側        | `forearm.flexor` 手のひら側<br>`forearm.extensor` 手の甲側                                                                                                                                                                                          |
+| `wrist`     | 手首             | R=右 L=左 B=両側        | `wrist.radial` 親指側(橈側)<br>`wrist.ulnar` 小指側(尺側)<br>`wrist.dorsal` 甲側<br>`wrist.palmar` 手のひら側                                                                                                                                       |
+| `hand`      | 手・指           | R=右 L=左 B=両側        | `hand.thumb` 親指<br>`hand.fingers` 指(親指以外)<br>`hand.palm` 手のひら<br>`hand.dorsum` 手の甲                                                                                                                                                    |
+| `chest`     | 胸               | C=中央 R=右 L=左 B=両側 | `chest.pectoral` 胸の筋肉(大胸筋)<br>`chest.sternum` 胸の中央(胸骨)<br>`chest.ribs` 肋骨・脇                                                                                                                                                        |
+| `abdomen`   | お腹             | C=中央 R=右 L=左 B=両側 | `abdomen.upper` 上の方<br>`abdomen.lower` 下の方<br>`abdomen.side` 脇腹                                                                                                                                                                             |
+| `upperBack` | 背中(胸椎部)     | C=中央 R=右 L=左 B=両側 | `upperBack.spine` 背骨そのもの(胸椎)<br>`upperBack.paraspinal` 背骨のすぐ横の筋肉<br>`upperBack.interscapular` 肩甲骨の間<br>`upperBack.scapula` 肩甲骨まわり                                                                                       |
+| `lowBack`   | 腰(腰椎部)       | C=中央 R=右 L=左 B=両側 | `lowBack.spine` 背骨そのもの(腰椎)<br>`lowBack.paraspinal` 背骨のすぐ横の筋肉<br>`lowBack.sacroiliac` 骨盤の付け根(仙腸関節)<br>`lowBack.sacrum` お尻の割れ目の上(仙骨・尾骨)                                                                       |
+| `hip`       | 股関節           | R=右 L=左 B=両側        | `hip.anterior` 前(脚の付け根・鼠径部)<br>`hip.lateral` 外側(大転子のあたり)<br>`hip.posterior` 後ろ<br>`hip.deep` 奥の方(場所がはっきりしない)                                                                                                      |
+| `buttock`   | お尻             | R=右 L=左 B=両側        | `buttock.gluteal` お尻の筋肉(臀筋)<br>`buttock.ischial` 座ると当たる骨(坐骨)                                                                                                                                                                        |
+| `thigh`     | 太もも           | R=右 L=左 B=両側        | `thigh.anterior` 前(大腿四頭筋)<br>`thigh.posterior` 裏(ハムストリングス)<br>`thigh.medial` 内側(内転筋)<br>`thigh.lateral` 外側(腸脛靭帯)                                                                                                          |
+| `knee`      | 膝               | R=右 L=左 B=両側        | `knee.anterior` 前(膝のお皿まわり)<br>`knee.infrapatellar` お皿のすぐ下(膝蓋腱)<br>`knee.medial` 内側<br>`knee.lateral` 外側<br>`knee.posterior` 裏(膝窩)                                                                                           |
+| `lowerLeg`  | すね・ふくらはぎ | R=右 L=左 B=両側        | `lowerLeg.anterior` すね(前)<br>`lowerLeg.medial` すねの内側(シンスプリントの場所)<br>`lowerLeg.posterior` ふくらはぎ                                                                                                                               |
+| `ankle`     | 足首             | R=右 L=左 B=両側        | `ankle.lateral` 外側(外くるぶしのまわり)<br>`ankle.medial` 内側(内くるぶしのまわり)<br>`ankle.anterior` 前<br>`ankle.posterior` 後ろ(アキレス腱)                                                                                                    |
+| `foot`      | 足               | R=右 L=左 B=両側        | `foot.plantar` 足の裏<br>`foot.heel` かかと<br>`foot.dorsum` 足の甲<br>`foot.toes` 足の指                                                                                                                                                           |
 
 **痛みの種類(`qualities`)**
 
-| コード        | 意味             |
-| ------------- | ---------------- |
-| `sharp`       | 鋭い(ズキッ)     |
-| `throbbing`   | ズキズキ         |
-| `dull`        | 鈍い・重だるい   |
-| `tight`       | 張り・こわばり   |
-| `numb`        | しびれ           |
-| `radiating`   | 電気が走る・響く |
-| `burning`     | 焼けるよう       |
-| `catching`    | 引っかかる       |
-| `instability` | 抜ける・ぐらつく |
-| `swelling`    | 腫れ             |
-| `heat`        | 熱っぽい         |
-| `stiff`       | 動かしにくい     |
+| コード        | 意味                   |
+| ------------- | ---------------------- |
+| `sharp`       | 鋭い(ズキッ)           |
+| `throbbing`   | ズキズキ               |
+| `dull`        | 鈍い・重だるい         |
+| `tight`       | 張り・こわばり         |
+| `numb`        | しびれ                 |
+| `radiating`   | 電気が走る・響く       |
+| `burning`     | 焼けるよう             |
+| `catching`    | 引っかかる             |
+| `instability` | 抜ける・ぐらつく       |
+| `swelling`    | 腫れ                   |
+| `heat`        | 熱っぽい               |
+| `stiff`       | 動かしにくい           |
+| `pressing`    | 締め付けられる・圧迫感 |
 
 **痛む時(`timings`)**
 

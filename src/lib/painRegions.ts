@@ -36,6 +36,17 @@ const area = (
 })
 
 export const PAIN_AREAS: PainArea[] = [
+  // 頭痛は痛む場所で種類の見当がつく(例: 後頭部=首由来、こめかみ・目の奥=片頭痛や群発頭痛、
+  // 頭全体の締め付け=緊張型)。顎関節は重い挙上時の食いしばりで痛めやすいので頭に含める
+  area('head', '頭', 'axial', [
+    ['frontal', 'おでこ(前頭部)'],
+    ['temporal', 'こめかみ(側頭部)'],
+    ['parietal', 'てっぺん(頭頂部)'],
+    ['occipital', '後頭部(首との境目あたり)'],
+    ['orbital', '目の奥・目のまわり'],
+    ['whole', '頭全体'],
+    ['jaw', '顎(顎関節・食いしばり)'],
+  ]),
   area('neck', '首(頸部)', 'axial', [
     ['posterior', '後ろ(うなじ)'],
     ['lateral', '横'],
@@ -188,6 +199,7 @@ export const PAIN_QUALITIES: Choice[] = [
   { id: 'swelling', label: '腫れ' },
   { id: 'heat', label: '熱っぽい' },
   { id: 'stiff', label: '動かしにくい' },
+  { id: 'pressing', label: '締め付けられる・圧迫感' },
 ]
 
 /** 痛む時(複数選択) */
@@ -227,6 +239,14 @@ export const qualityLabel = (id: string) => choiceLabel(PAIN_QUALITIES, id)
 export const timingLabel = (id: string) => choiceLabel(PAIN_TIMINGS, id)
 export const movementLabel = (id: string) => choiceLabel(PAIN_MOVEMENTS, id)
 export const onsetLabel = (id: string) => choiceLabel(PAIN_ONSETS, id)
+
+/**
+ * 受診を急いだ方がよい頭痛か。運動中などに突然起きた頭痛・非常に強い頭痛は
+ * 脳の血管のトラブル(くも膜下出血など)の可能性があるため、入力画面で注意を出す
+ */
+export function isHeadacheWarning(area: string, intensity: number, onset?: string): boolean {
+  return area === 'head' && (onset === 'sudden' || intensity >= 8)
+}
 
 /** NRS(0〜10)の目安。受診時に医師がよく聞く尺度 */
 export function nrsHint(n: number): string {
