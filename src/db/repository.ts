@@ -419,6 +419,33 @@ export async function transferSets(options: TransferOptions): Promise<number> {
   })
 }
 
+/**
+ * 日の種目×タグブロックを丸ごと削除する(全セット+ブロックメモ)。
+ * 日のメモ・場所(days)は残す。残ったブロックの orderInDay は振り直す。削除したセット数を返す
+ */
+export async function deleteBlockInDay(
+  date: string,
+  exerciseId: string,
+  tagId: string,
+): Promise<number> {
+  return db.transaction('rw', [db.sets, db.blockNotes], async () => {
+    const sets = (await db.sets.where('date').equals(date).toArray()).sort(
+      (a, b) => a.orderInDay - b.orderInDay,
+    )
+    const target = sets.filter((s) => s.exerciseId === exerciseId && s.tagId === tagId)
+    if (!target.length) return 0
+    await db.sets.bulkDelete(target.map((s) => s.id))
+    await db.blockNotes.delete([date, exerciseId, tagId])
+    let order = 0
+    await db.sets.bulkPut(
+      sets
+        .filter((s) => !(s.exerciseId === exerciseId && s.tagId === tagId))
+        .map((s) => ({ ...s, orderInDay: order++ })),
+    )
+    return target.length
+  })
+}
+
 /** 日の中で種目×タグブロックの表示順を 1 つ上/下、または先頭/末尾へ移動する(orderInDay を振り直す) */
 export async function moveBlockInDay(
   date: string,

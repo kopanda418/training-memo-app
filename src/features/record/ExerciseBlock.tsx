@@ -16,6 +16,7 @@ import {
   changeBlockExercise,
   changeBlockTag,
   copyPreviousSession,
+  deleteBlockInDay,
   getLastSet,
   moveBlockInDay,
   reorderSetsInBlock,
@@ -59,6 +60,12 @@ export function ExerciseBlock({
   const [exercisePickerOpen, setExercisePickerOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [reorderOpen, setReorderOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const closeMenu = () => {
+    setMenuOpen(false)
+    setConfirmDelete(false)
+  }
 
   // セット番号の長押し(250ms)でドラッグ開始(タップやスクロールと衝突させない)
   const sensors = useSensors(
@@ -134,7 +141,7 @@ export function ExerciseBlock({
         {sets.length > 0 ? (
           <button
             type="button"
-            aria-label="この種目のメニュー(並べ替え・別の日へ)"
+            aria-label="この種目のメニュー(並べ替え・別の日へ・削除)"
             className="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-700"
             onClick={() => setMenuOpen(true)}
           >
@@ -176,54 +183,90 @@ export function ExerciseBlock({
         ＋ セット追加
       </button>
       {menuOpen && (
-        <Modal open onClose={() => setMenuOpen(false)} title={exerciseName}>
-          <div className="flex flex-col gap-1.5">
-            {/* 1 つずつ/端まで一気に移動(新しく追加した種目を先頭へ持っていく等) */}
-            <div className="grid grid-cols-2 gap-1.5">
-              {(
-                [
-                  ['top', '⤒ 一番上へ', isFirst],
-                  ['bottom', '⤓ 一番下へ', isLast],
-                  ['up', '↑ 上へ移動', isFirst],
-                  ['down', '↓ 下へ移動', isLast],
-                ] as const
-              ).map(([direction, label, disabled]) => (
+        <Modal open onClose={closeMenu} title={exerciseName}>
+          {confirmDelete ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm">
+                この日の「{exerciseName}
+                {tagName ? ` / ${tagName}` : ''}」の記録 {sets.length}{' '}
+                セットと感想メモを削除します。元に戻せません。
+              </p>
+              <div className="flex gap-2">
                 <button
-                  key={direction}
                   type="button"
-                  className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-30 dark:border-slate-700"
-                  disabled={disabled}
+                  className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm dark:border-slate-600"
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  やめる
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 rounded-lg bg-red-600 py-2.5 text-sm font-bold text-white active:bg-red-700"
                   onClick={() => {
-                    void moveBlockInDay(date, exerciseId, tagId, direction)
-                    setMenuOpen(false)
+                    closeMenu()
+                    void deleteBlockInDay(date, exerciseId, tagId)
                   }}
                 >
-                  {label}
+                  削除する
                 </button>
-              ))}
+              </div>
             </div>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-30 dark:border-slate-700"
-              disabled={isFirst && isLast}
-              onClick={() => {
-                setMenuOpen(false)
-                setReorderOpen(true)
-              }}
-            >
-              ⇅ 一覧で並べ替え
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm dark:border-slate-700"
-              onClick={() => {
-                setMenuOpen(false)
-                setTransferOpen(true)
-              }}
-            >
-              📆 別の日へコピー / 移動
-            </button>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {/* 1 つずつ/端まで一気に移動(新しく追加した種目を先頭へ持っていく等) */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    ['top', '⤒ 一番上へ', isFirst],
+                    ['bottom', '⤓ 一番下へ', isLast],
+                    ['up', '↑ 上へ移動', isFirst],
+                    ['down', '↓ 下へ移動', isLast],
+                  ] as const
+                ).map(([direction, label, disabled]) => (
+                  <button
+                    key={direction}
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-30 dark:border-slate-700"
+                    disabled={disabled}
+                    onClick={() => {
+                      void moveBlockInDay(date, exerciseId, tagId, direction)
+                      closeMenu()
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-30 dark:border-slate-700"
+                disabled={isFirst && isLast}
+                onClick={() => {
+                  setMenuOpen(false)
+                  setReorderOpen(true)
+                }}
+              >
+                ⇅ 一覧で並べ替え
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm dark:border-slate-700"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setTransferOpen(true)
+                }}
+              >
+                📆 別の日へコピー / 移動
+              </button>
+              <button
+                type="button"
+                className="mt-2 rounded-lg border border-red-200 px-3 py-2.5 text-left text-sm text-red-600 active:bg-red-50 dark:border-red-900 dark:text-red-400 dark:active:bg-red-950"
+                onClick={() => setConfirmDelete(true)}
+              >
+                🗑 この種目の記録を削除
+              </button>
+            </div>
+          )}
         </Modal>
       )}
       {reorderOpen && <BlockReorderModal date={date} onClose={() => setReorderOpen(false)} />}
