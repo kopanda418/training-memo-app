@@ -34,7 +34,7 @@ GitHub リポジトリ → GitHub Actions → GitHub Pages (静的配信のみ)
 日付キーは端末ローカルの `YYYY-MM-DD` 文字列。ID は `crypto.randomUUID()`。
 
 ```ts
-// db.version(7) 時点
+// db.version(8) 時点
 exercises: 'id, name, bodyPart, sortOrder'
 // { id, name, bodyPart(部位名の文字列), sortOrder, isArchived, createdAt }
 tags: 'id, name, sortOrder'
@@ -60,6 +60,12 @@ bodyParts: 'id, name, sortOrder' // v3 追加
 // { id, name, sortOrder } … 部位マスタ(追加可能。デフォルト7部位をシード)
 templates: 'id, name' // v4 追加
 // { id, name, items: {exerciseId, tagId}[], createdAt } … トレーニングメニュー
+conditions: 'date' // v8 追加(ADR-014)
+// { date, condition?(1〜10), motivation?(1〜10) } … 日ごとの体調・やる気。days とは別テーブル
+painRecords: 'id, date, area, [area+side]' // v8 追加(ADR-014)
+// { id, date, area(例 'knee'), regionIds[](例 'knee.medial'), side('R'|'L'|'B'|'C'),
+//   intensity(NRS 0〜10), qualities[], timings[], movements[], onset?, exerciseIds[], note?,
+//   createdAt, updatedAt } … 1 日 1 部位×左右 1 件。部位・選択肢のコードは src/lib/painRegions.ts
 settings: 'key'
 // { key, value } … bodyWeight / quickSetAttributes / quickExerciseTagIds / theme など
 //                   (キー一覧は src/db/settings.ts の SettingKey)
@@ -88,6 +94,8 @@ settings: 'key'
 | **履歴**             | カレンダー(記録日マーク)+ 種目別履歴(タグフィルタチップ付き)。日単位のコピー/移動はここから(日を選択 → コピー or 移動 → 対象日選択)                            |
 | **グラフ**           | 種目×タグセレクタ + 指標切替(最大重量/推定1RM/総負荷量/セット数)の折れ線。MAX 記録(王冠)一覧もこのタブ                                                         |
 | **設定**             | テーマ / 単位 / タイマー設定(Wake Lock ON/OFF)/ マスタ管理(種目・タグ・場所)/ エクスポート・インポート(全置換)/ **プラン取り込み(追加専用、ADR-010)**          |
+| 体調・痛み           | `/condition?date=`。記録画面の「🩺」チップから開く。体調・やる気(1〜10)、続いている痛み、その日の痛み一覧、人体図(正面/背面)タップ → 痛み入力シート(ADR-014)   |
+| 痛みの経過           | `/condition/pain`。部位×左右ごとに期間・強さの推移・記録一覧、受診用要約のコピー                                                                               |
 | タイマーオーバーレイ | どの画面からも被せて表示。プリセット秒 + カウントダウン + Wake Lock 取得                                                                                       |
 
 ### 入力 UX の原則(応答速度要件)

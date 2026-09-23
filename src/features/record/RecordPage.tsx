@@ -6,6 +6,7 @@ import { listSetsByDate } from '../../db/repository'
 import { addDays, formatDateLabel, todayString } from '../../lib/date'
 import { groupSetsIntoBlocks, type SetBlock } from '../../lib/groupSets'
 import { KeyboardTimerButton } from '../timer/KeyboardTimerButton'
+import { ConditionChip } from './ConditionChip'
 import { DayNoteRow } from './DayNoteRow'
 import { ExerciseBlock } from './ExerciseBlock'
 import { ExercisePicker } from './ExercisePicker'
@@ -120,8 +121,9 @@ export function RecordPage() {
             ›
           </button>
         </div>
-        <div className="flex px-3 pb-2">
+        <div className="flex gap-2 px-3 pb-2">
           <LocationRow date={date} />
+          <ConditionChip date={date} />
         </div>
         <div className="px-3 pb-2">
           <DayNoteRow date={date} />

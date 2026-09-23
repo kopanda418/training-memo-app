@@ -22,7 +22,9 @@
     "setAttributes":[...],
     "bodyParts":    [...],
     "templates":    [...],
-    "blockNotes":   [...]
+    "blockNotes":   [...],
+    "conditions":   [...],
+    "painRecords":  [...]
   }
 }
 ```
@@ -214,6 +216,39 @@ interface BlockNote {
 `days[].note` はユーザーが書いた内容。外部プロジェクトがこのファイルを読んで実績を分析する場合、
 ユーザーの生の声は後者の 3 つに入っている
 
+### conditions — 日ごとの体調・やる気(v1.0.27〜/ADR-014)
+
+```ts
+interface DailyCondition {
+  date: string // "YYYY-MM-DD"
+  condition?: number // 体調 1〜10(10=絶好調)
+  motivation?: number // やる気 1〜10(10=最高)
+}
+```
+
+### painRecords — 痛みの記録(v1.0.27〜/ADR-014)
+
+1 日 1 部位×左右ごとに 1 行。部位・選択肢はすべてコードで、日本語ラベルは `src/lib/painRegions.ts`。
+
+```ts
+interface PainRecord {
+  id: string
+  date: string // "YYYY-MM-DD"
+  area: string // 大きな部位。例 "knee" "elbow" "lowBack"
+  regionIds: string[] // 細かい場所。例 ["knee.medial"]。空=不明
+  side: 'R' | 'L' | 'B' | 'C' // 本人から見た 右/左/両側/中央
+  intensity: number // 強さ NRS 0〜10(0=痛みなし)
+  qualities: string[] // 痛みの種類。例 "sharp" "dull" "numb"
+  timings: string[] // 痛む時。例 "training" "night" "morning"
+  movements: string[] // 痛む動き。例 "push" "squat" "overhead"
+  onset?: string // 始まり方 "sudden" | "gradual" | "unknown"
+  exerciseIds: string[] // 関連しそうな種目(exercises.id)
+  note?: string
+  createdAt: number
+  updatedAt: number
+}
+```
+
 ---
 
 ## 旧バックアップとの互換性
@@ -226,6 +261,8 @@ interface BlockNote {
 | `sets[].attributes[]`   | Dexie v5       | 旧 `attribute`(単数 string)は import 時に `attributes: [attribute]` へ正規化 |
 | `locations[].sortOrder` | Dexie v6       | 旧データは `lastUsedAt` 降順で自動採番                                       |
 | `blockNotes`            | Dexie v7       | 省略可。import 時は空配列として扱う                                          |
+| `conditions`            | Dexie v8       | 省略可。import 時は空配列として扱う                                          |
+| `painRecords`           | Dexie v8       | 省略可。import 時は空配列として扱う                                          |
 
 ---
 

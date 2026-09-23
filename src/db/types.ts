@@ -59,6 +59,45 @@ export interface BlockNote {
   planNote?: string
 }
 
+/** 日ごとの体調・やる気(各 1〜10、未入力は undefined)。ADR-014 */
+export interface DailyCondition {
+  /** YYYY-MM-DD(端末ローカル) */
+  date: string
+  condition?: number
+  motivation?: number
+}
+
+/**
+ * 痛みの記録(1 日 1 部位×左右ごとに 1 件)。ADR-014。
+ * 部位は画像ではなく src/lib/painRegions.ts の ID で保存する
+ */
+export interface PainRecord {
+  id: string
+  /** YYYY-MM-DD */
+  date: string
+  /** 大きな部位(例: 'knee')。経過のまとめ単位 = area × side */
+  area: string
+  /** 細かい部位(例: ['knee.medial', 'knee.posterior'])。空=細かい場所は不明 */
+  regionIds: string[]
+  /** 患者本人から見た左右。R/L/B(両側)/C(中央) */
+  side: 'R' | 'L' | 'B' | 'C'
+  /** 強さ NRS 0〜10 */
+  intensity: number
+  /** 痛みの種類コード(PAIN_QUALITIES) */
+  qualities: string[]
+  /** 痛む時コード(PAIN_TIMINGS) */
+  timings: string[]
+  /** 痛む動きコード(PAIN_MOVEMENTS) */
+  movements: string[]
+  /** 発症の仕方コード(PAIN_ONSETS)。任意 */
+  onset?: string
+  /** 関連しそうな種目 */
+  exerciseIds: string[]
+  note?: string
+  createdAt: number
+  updatedAt: number
+}
+
 export interface WorkoutSet {
   id: string
   /** YYYY-MM-DD */

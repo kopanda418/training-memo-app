@@ -5,6 +5,8 @@ import { TimerOverlay } from '../features/timer/TimerOverlay'
 import { TabBar } from './TabBar'
 import { ThemeApplier } from './ThemeApplier'
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage'
+import { ConditionPage } from '../features/condition/ConditionPage'
+import { PainHistoryPage } from '../features/condition/PainHistoryPage'
 import { HistoryPage } from '../features/history/HistoryPage'
 import { RecordPage } from '../features/record/RecordPage'
 import { AttributeManagerPage } from '../features/settings/AttributeManagerPage'
@@ -28,6 +30,8 @@ export default function App() {
               <Route path="/" element={<Navigate to="/record" replace />} />
               <Route path="/record" element={<RecordPage />} />
               <Route path="/history" element={<HistoryPage />} />
+              <Route path="/condition" element={<ConditionPage />} />
+              <Route path="/condition/pain" element={<PainHistoryPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/exercises" element={<ExerciseManagerPage />} />

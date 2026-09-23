@@ -3,9 +3,11 @@ import { buildDefaultBodyParts, buildDefaultExercises, buildDefaultTags } from '
 import type {
   BlockNote,
   BodyPartRow,
+  DailyCondition,
   Day,
   Exercise,
   Location,
+  PainRecord,
   SetAttribute,
   Setting,
   Tag,
@@ -28,6 +30,8 @@ export class TrainingMemoDB extends Dexie {
   bodyParts!: Table<BodyPartRow, string>
   templates!: Table<Template, string>
   blockNotes!: Table<BlockNote, [string, string, string]>
+  conditions!: Table<DailyCondition, string>
+  painRecords!: Table<PainRecord, string>
 
   constructor() {
     super('training-memo')
@@ -95,6 +99,11 @@ export class TrainingMemoDB extends Dexie {
     // v7: 種目×タグブロックの感想メモ(days.note とは別立て。複合主キー)
     this.version(7).stores({
       blockNotes: '[date+exerciseId+tagId], date',
+    })
+    // v8: 体調・やる気スコアと痛み記録(ADR-014。days とは別テーブル)
+    this.version(8).stores({
+      conditions: 'date',
+      painRecords: 'id, date, area, [area+side]',
     })
     // 初回作成時のみデフォルトマスタを投入
     this.on('populate', () => {
