@@ -419,12 +419,12 @@ export async function transferSets(options: TransferOptions): Promise<number> {
   })
 }
 
-/** 日の中で種目×タグブロックの表示順を 1 つ上/下へ移動する(orderInDay を振り直す) */
+/** 日の中で種目×タグブロックの表示順を 1 つ上/下、または先頭/末尾へ移動する(orderInDay を振り直す) */
 export async function moveBlockInDay(
   date: string,
   exerciseId: string,
   tagId: string,
-  direction: 'up' | 'down',
+  direction: 'up' | 'down' | 'top' | 'bottom',
 ): Promise<void> {
   await db.transaction('rw', [db.sets], async () => {
     const sets = (await db.sets.where('date').equals(date).toArray()).sort(
@@ -432,11 +432,41 @@ export async function moveBlockInDay(
     )
     const blocks = groupSetsIntoBlocks(sets)
     const index = blocks.findIndex((b) => b.exerciseId === exerciseId && b.tagId === tagId)
-    const swapWith = direction === 'up' ? index - 1 : index + 1
-    if (index < 0 || swapWith < 0 || swapWith >= blocks.length) return
-    ;[blocks[index], blocks[swapWith]] = [blocks[swapWith], blocks[index]]
+    if (index < 0) return
+    const to =
+      direction === 'top'
+        ? 0
+        : direction === 'bottom'
+          ? blocks.length - 1
+          : direction === 'up'
+            ? index - 1
+            : index + 1
+    if (to < 0 || to >= blocks.length || to === index) return
+    const [moved] = blocks.splice(index, 1)
+    blocks.splice(to, 0, moved)
     let order = 0
     await db.sets.bulkPut(blocks.flatMap((b) => b.sets.map((s) => ({ ...s, orderInDay: order++ }))))
+  })
+}
+
+/**
+ * 日の種目×タグブロックを指定順に並べ替える(並べ替え画面のドラッグ結果)。
+ * orderedKeys は `${exerciseId}|${tagId}`。含まれないブロックは元の相対順で末尾に残す
+ */
+export async function reorderBlocksInDay(date: string, orderedKeys: string[]): Promise<void> {
+  await db.transaction('rw', [db.sets], async () => {
+    const sets = (await db.sets.where('date').equals(date).toArray()).sort(
+      (a, b) => a.orderInDay - b.orderInDay,
+    )
+    const blocks = groupSetsIntoBlocks(sets)
+    const rank = new Map(orderedKeys.map((k, i) => [k, i]))
+    const keyOf = (b: { exerciseId: string; tagId: string }) => `${b.exerciseId}|${b.tagId}`
+    const sorted = blocks
+      .map((b, i) => ({ b, r: rank.get(keyOf(b)) ?? orderedKeys.length + i }))
+      .sort((x, y) => x.r - y.r)
+      .map((x) => x.b)
+    let order = 0
+    await db.sets.bulkPut(sorted.flatMap((b) => b.sets.map((s) => ({ ...s, orderInDay: order++ }))))
   })
 }
 

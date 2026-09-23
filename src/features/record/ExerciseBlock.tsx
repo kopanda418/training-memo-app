@@ -23,6 +23,7 @@ import {
 import { NO_TAG, type WorkoutSet } from '../../db/types'
 import { TagSelectModal } from '../settings/TagSelectModal'
 import { BlockNoteRow } from './BlockNoteRow'
+import { BlockReorderModal } from './BlockReorderModal'
 import { ExercisePicker } from './ExercisePicker'
 import { PreviousRecordPanel } from './PreviousRecordPanel'
 import { SetRow } from './SetRow'
@@ -57,6 +58,7 @@ export function ExerciseBlock({
   const [tagModalOpen, setTagModalOpen] = useState(false)
   const [exercisePickerOpen, setExercisePickerOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [reorderOpen, setReorderOpen] = useState(false)
 
   // セット番号の長押し(250ms)でドラッグ開始(タップやスクロールと衝突させない)
   const sensors = useSensors(
@@ -176,27 +178,40 @@ export function ExerciseBlock({
       {menuOpen && (
         <Modal open onClose={() => setMenuOpen(false)} title={exerciseName}>
           <div className="flex flex-col gap-1.5">
+            {/* 1 つずつ/端まで一気に移動(新しく追加した種目を先頭へ持っていく等) */}
+            <div className="grid grid-cols-2 gap-1.5">
+              {(
+                [
+                  ['top', '⤒ 一番上へ', isFirst],
+                  ['bottom', '⤓ 一番下へ', isLast],
+                  ['up', '↑ 上へ移動', isFirst],
+                  ['down', '↓ 下へ移動', isLast],
+                ] as const
+              ).map(([direction, label, disabled]) => (
+                <button
+                  key={direction}
+                  type="button"
+                  className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-30 dark:border-slate-700"
+                  disabled={disabled}
+                  onClick={() => {
+                    void moveBlockInDay(date, exerciseId, tagId, direction)
+                    setMenuOpen(false)
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-30 dark:border-slate-700"
-              disabled={isFirst}
+              disabled={isFirst && isLast}
               onClick={() => {
-                void moveBlockInDay(date, exerciseId, tagId, 'up')
                 setMenuOpen(false)
+                setReorderOpen(true)
               }}
             >
-              ↑ 上へ移動
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-30 dark:border-slate-700"
-              disabled={isLast}
-              onClick={() => {
-                void moveBlockInDay(date, exerciseId, tagId, 'down')
-                setMenuOpen(false)
-              }}
-            >
-              ↓ 下へ移動
+              ⇅ 一覧で並べ替え
             </button>
             <button
               type="button"
@@ -211,6 +226,7 @@ export function ExerciseBlock({
           </div>
         </Modal>
       )}
+      {reorderOpen && <BlockReorderModal date={date} onClose={() => setReorderOpen(false)} />}
       {tagModalOpen && (
         <TagSelectModal
           open

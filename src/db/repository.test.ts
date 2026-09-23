@@ -32,6 +32,7 @@ import {
   listRecordedDates,
   listSetAttributes,
   moveBlockInDay,
+  reorderBlocksInDay,
   listSetsByDate,
   setBlockNote,
   setDayLocation,
@@ -288,6 +289,38 @@ describe('moveBlockInDay(種目ブロックの並べ替え)', () => {
     await moveBlockInDay('2026-07-03', ex3.id, '', 'down')
     sets = await listSetsByDate('2026-07-03')
     expect(sets.map((s) => s.exerciseId)).toEqual([ex2.id, ex1.id, ex1.id, ex3.id])
+  })
+})
+
+describe('moveBlockInDay top/bottom・reorderBlocksInDay(一気に並べ替え)', () => {
+  it('一番上/一番下へ一気に移動できる', async () => {
+    const [ex1, ex2, ex3] = await db.exercises.toArray()
+    await addSet({ date: '2026-07-03', exerciseId: ex1.id, weight: 100, reps: 5 })
+    await addSet({ date: '2026-07-03', exerciseId: ex2.id, weight: 50, reps: 10 })
+    await addSet({ date: '2026-07-03', exerciseId: ex3.id, weight: 30, reps: 15 })
+    await addSet({ date: '2026-07-03', exerciseId: ex3.id, weight: 30, reps: 12 })
+
+    await moveBlockInDay('2026-07-03', ex3.id, '', 'top')
+    let sets = await listSetsByDate('2026-07-03')
+    expect(sets.map((s) => s.exerciseId)).toEqual([ex3.id, ex3.id, ex1.id, ex2.id])
+    expect(sets.map((s) => s.orderInDay)).toEqual([0, 1, 2, 3])
+
+    await moveBlockInDay('2026-07-03', ex3.id, '', 'bottom')
+    sets = await listSetsByDate('2026-07-03')
+    expect(sets.map((s) => s.exerciseId)).toEqual([ex1.id, ex2.id, ex3.id, ex3.id])
+  })
+
+  it('指定したブロック順に並べ替わり、ブロック内のセット順は保たれる', async () => {
+    const [ex1, ex2, ex3] = await db.exercises.toArray()
+    const a1 = await addSet({ date: '2026-07-03', exerciseId: ex1.id, weight: 100, reps: 5 })
+    const a2 = await addSet({ date: '2026-07-03', exerciseId: ex1.id, weight: 90, reps: 8 })
+    await addSet({ date: '2026-07-03', exerciseId: ex2.id, weight: 50, reps: 10 })
+    await addSet({ date: '2026-07-03', exerciseId: ex3.id, weight: 30, reps: 15 })
+
+    await reorderBlocksInDay('2026-07-03', [`${ex3.id}|`, `${ex1.id}|`, `${ex2.id}|`])
+    const sets = await listSetsByDate('2026-07-03')
+    expect(sets.map((s) => s.exerciseId)).toEqual([ex3.id, ex1.id, ex1.id, ex2.id])
+    expect(sets.filter((s) => s.exerciseId === ex1.id).map((s) => s.id)).toEqual([a1.id, a2.id])
   })
 })
 
