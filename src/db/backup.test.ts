@@ -50,6 +50,13 @@ describe('エクスポート → 全削除 → インポートで復元できる
   })
 })
 
+describe('書き出しの網羅性', () => {
+  it('DB の全テーブルがバックアップの data に含まれる(テーブル追加時の入れ忘れ防止)', async () => {
+    const backup = await exportData()
+    expect(Object.keys(backup.data).sort()).toEqual(db.tables.map((t) => t.name).sort())
+  })
+})
+
 describe('validateBackup', () => {
   it('別アプリ・非対応バージョン・欠損データを拒否する', () => {
     expect(() => validateBackup(null)).toThrow()

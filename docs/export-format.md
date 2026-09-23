@@ -218,6 +218,9 @@ interface BlockNote {
 
 ### conditions — 日ごとの体調・やる気(v1.0.27〜/ADR-014)
 
+記録画面の「🩺 体調・痛み」から入力する 1 日 1 行のスコア。どちらか一方だけの日もある
+(両方を未入力に戻すと行ごと消える)。`days` とは別テーブルで、トレーニング記録が無い日にも存在しうる。
+
 ```ts
 interface DailyCondition {
   date: string // "YYYY-MM-DD"
@@ -228,7 +231,9 @@ interface DailyCondition {
 
 ### painRecords — 痛みの記録(v1.0.27〜/ADR-014)
 
-1 日 1 部位×左右ごとに 1 行。部位・選択肢はすべてコードで、日本語ラベルは `src/lib/painRegions.ts`。
+1 日 1 部位×左右(`date + area + side`)ごとに 1 行。人体図は入力手段で、画像は保存しない。
+部位・選択肢はすべて下記の固定コードで保存される(正本は `src/lib/painRegions.ts`。コードは
+保存データのキーなので変更・削除されず、追加のみ行われる)。
 
 ```ts
 interface PainRecord {
@@ -248,6 +253,91 @@ interface PainRecord {
   updatedAt: number
 }
 ```
+
+**読み方の注意:**
+
+- 左右は**本人から見た**左右。`B`=両側、`C`=体の中心線上(首・背骨など。体幹の部位でのみ使う)
+- `intensity` は医療で使われる NRS(0=痛みなし、10=想像できる最悪の痛み)。目安は 1〜3 軽い、4〜6 中くらい、7〜9 強い
+- `intensity: 0` の行は「その日は痛くなかった(回復)」の記録。痛みの経過を追うときの終点になる
+- 同じ `area + side` の行を日付順に並べると、その痛みの経過になる(アプリの「痛みの経過」画面と同じまとめ方)
+- `onset` は基本的にその部位×左右を初めて記録した日だけに入る
+- `regionIds` / `qualities` / `timings` / `movements` / `exerciseIds` は未選択なら空配列(`[]`)
+
+#### コード一覧
+
+**部位(`area` / `regionIds`)** — `regionIds` は `<area>.<細部>` 形式
+
+| `area`      | 部位             | 左右の選択肢            | `regionIds`(細かい場所)                                                                                                                                                                |
+| ----------- | ---------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `neck`      | 首(頸部)         | C=中央 R=右 L=左 B=両側 | `neck.posterior` 後ろ(うなじ)<br>`neck.lateral` 横<br>`neck.base` 付け根〜肩の上(僧帽筋上部)<br>`neck.anterior` 前                                                                     |
+| `shoulder`  | 肩               | R=右 L=左 B=両側        | `shoulder.anterior` 前側<br>`shoulder.lateral` 外側(三角筋)<br>`shoulder.posterior` 後ろ側<br>`shoulder.superior` 上(肩鎖関節のあたり)<br>`shoulder.deep` 奥の方(場所がはっきりしない) |
+| `upperArm`  | 上腕             | R=右 L=左 B=両側        | `upperArm.anterior` 前側(力こぶ・上腕二頭筋)<br>`upperArm.posterior` 後ろ側(上腕三頭筋)                                                                                                |
+| `elbow`     | 肘               | R=右 L=左 B=両側        | `elbow.lateral` 外側(外側上顆・テニス肘の場所)<br>`elbow.medial` 内側(内側上顆・ゴルフ肘の場所)<br>`elbow.posterior` 後ろ(肘頭・肘の先)<br>`elbow.anterior` 前(肘の内側のくぼみ)       |
+| `forearm`   | 前腕             | R=右 L=左 B=両側        | `forearm.flexor` 手のひら側<br>`forearm.extensor` 手の甲側                                                                                                                             |
+| `wrist`     | 手首             | R=右 L=左 B=両側        | `wrist.radial` 親指側(橈側)<br>`wrist.ulnar` 小指側(尺側)<br>`wrist.dorsal` 甲側<br>`wrist.palmar` 手のひら側                                                                          |
+| `hand`      | 手・指           | R=右 L=左 B=両側        | `hand.thumb` 親指<br>`hand.fingers` 指(親指以外)<br>`hand.palm` 手のひら<br>`hand.dorsum` 手の甲                                                                                       |
+| `chest`     | 胸               | C=中央 R=右 L=左 B=両側 | `chest.pectoral` 胸の筋肉(大胸筋)<br>`chest.sternum` 胸の中央(胸骨)<br>`chest.ribs` 肋骨・脇                                                                                           |
+| `abdomen`   | お腹             | C=中央 R=右 L=左 B=両側 | `abdomen.upper` 上の方<br>`abdomen.lower` 下の方<br>`abdomen.side` 脇腹                                                                                                                |
+| `upperBack` | 背中(胸椎部)     | C=中央 R=右 L=左 B=両側 | `upperBack.spine` 背骨そのもの(胸椎)<br>`upperBack.paraspinal` 背骨のすぐ横の筋肉<br>`upperBack.interscapular` 肩甲骨の間<br>`upperBack.scapula` 肩甲骨まわり                          |
+| `lowBack`   | 腰(腰椎部)       | C=中央 R=右 L=左 B=両側 | `lowBack.spine` 背骨そのもの(腰椎)<br>`lowBack.paraspinal` 背骨のすぐ横の筋肉<br>`lowBack.sacroiliac` 骨盤の付け根(仙腸関節)<br>`lowBack.sacrum` お尻の割れ目の上(仙骨・尾骨)          |
+| `hip`       | 股関節           | R=右 L=左 B=両側        | `hip.anterior` 前(脚の付け根・鼠径部)<br>`hip.lateral` 外側(大転子のあたり)<br>`hip.posterior` 後ろ<br>`hip.deep` 奥の方(場所がはっきりしない)                                         |
+| `buttock`   | お尻             | R=右 L=左 B=両側        | `buttock.gluteal` お尻の筋肉(臀筋)<br>`buttock.ischial` 座ると当たる骨(坐骨)                                                                                                           |
+| `thigh`     | 太もも           | R=右 L=左 B=両側        | `thigh.anterior` 前(大腿四頭筋)<br>`thigh.posterior` 裏(ハムストリングス)<br>`thigh.medial` 内側(内転筋)<br>`thigh.lateral` 外側(腸脛靭帯)                                             |
+| `knee`      | 膝               | R=右 L=左 B=両側        | `knee.anterior` 前(膝のお皿まわり)<br>`knee.infrapatellar` お皿のすぐ下(膝蓋腱)<br>`knee.medial` 内側<br>`knee.lateral` 外側<br>`knee.posterior` 裏(膝窩)                              |
+| `lowerLeg`  | すね・ふくらはぎ | R=右 L=左 B=両側        | `lowerLeg.anterior` すね(前)<br>`lowerLeg.medial` すねの内側(シンスプリントの場所)<br>`lowerLeg.posterior` ふくらはぎ                                                                  |
+| `ankle`     | 足首             | R=右 L=左 B=両側        | `ankle.lateral` 外側(外くるぶしのまわり)<br>`ankle.medial` 内側(内くるぶしのまわり)<br>`ankle.anterior` 前<br>`ankle.posterior` 後ろ(アキレス腱)                                       |
+| `foot`      | 足               | R=右 L=左 B=両側        | `foot.plantar` 足の裏<br>`foot.heel` かかと<br>`foot.dorsum` 足の甲<br>`foot.toes` 足の指                                                                                              |
+
+**痛みの種類(`qualities`)**
+
+| コード        | 意味             |
+| ------------- | ---------------- |
+| `sharp`       | 鋭い(ズキッ)     |
+| `throbbing`   | ズキズキ         |
+| `dull`        | 鈍い・重だるい   |
+| `tight`       | 張り・こわばり   |
+| `numb`        | しびれ           |
+| `radiating`   | 電気が走る・響く |
+| `burning`     | 焼けるよう       |
+| `catching`    | 引っかかる       |
+| `instability` | 抜ける・ぐらつく |
+| `swelling`    | 腫れ             |
+| `heat`        | 熱っぽい         |
+| `stiff`       | 動かしにくい     |
+
+**痛む時(`timings`)**
+
+| コード     | 意味             |
+| ---------- | ---------------- |
+| `training` | 運動中           |
+| `after`    | 運動後           |
+| `daily`    | 日常の動作       |
+| `rest`     | じっとしていても |
+| `night`    | 夜・寝ている時   |
+| `morning`  | 朝起きた時       |
+| `pressure` | 押すと痛い       |
+
+**痛む動き(`movements`)**
+
+| コード     | 意味               |
+| ---------- | ------------------ |
+| `push`     | 押す               |
+| `pull`     | 引く               |
+| `overhead` | 腕を上げる         |
+| `grip`     | 握る               |
+| `squat`    | しゃがむ           |
+| `hinge`    | 前かがみ           |
+| `extend`   | 反らす             |
+| `twist`    | ひねる             |
+| `load`     | 体重をかける・着地 |
+
+**始まり方(`onset`)**
+
+| コード    | 意味               |
+| --------- | ------------------ |
+| `sudden`  | 急に(きっかけあり) |
+| `gradual` | だんだん           |
+| `unknown` | わからない         |
 
 ---
 
@@ -278,12 +368,16 @@ blockNotes  ([date+exerciseId+tagId] の感想メモ)
 setAttributes  (属性名の候補プール)         │
 templates      (exerciseId + tagId のリスト)│
 settings       (ユーザー設定)              │
+
+conditions   (date ごとの体調・やる気。days とは独立)
+painRecords  (date × area × side の痛み) ── exerciseIds[] ──→ exercises
 ```
 
 - `sets` が中心テーブル。1 セット 1 行
 - `exerciseId + tagId` の組み合わせが分析の基本単位
 - `days` は 1 日 1 行のメタ情報(場所・その日全体の感想メモ)
 - `blockNotes` は `date + exerciseId + tagId` 単位の感想メモ。ブロック(その日のその種目)に紐づく
+- `conditions` / `painRecords` は日付で `days`・`sets` と突き合わせられるが、トレーニングしていない日の記録もある
 
 ---
 
@@ -365,6 +459,25 @@ settings       (ユーザー設定)              │
         "exerciseId": "ex-001",
         "tagId": "tag-001",
         "note": "フォーム安定。次回は102.5kgに挑戦"
+      }
+    ],
+    "conditions": [{ "date": "2026-07-08", "condition": 7, "motivation": 8 }],
+    "painRecords": [
+      {
+        "id": "pain-001",
+        "date": "2026-07-08",
+        "area": "elbow",
+        "regionIds": ["elbow.medial"],
+        "side": "R",
+        "intensity": 4,
+        "qualities": ["sharp"],
+        "timings": ["training", "pressure"],
+        "movements": ["push"],
+        "onset": "gradual",
+        "exerciseIds": ["ex-001"],
+        "note": "ラックアップの瞬間に痛む",
+        "createdAt": 1720000000000,
+        "updatedAt": 1720000000000
       }
     ]
   }
