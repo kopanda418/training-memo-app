@@ -1,18 +1,19 @@
 import {
   computePlanActions,
+  planImportModeOf,
   setKeyOf,
   type ComputePlanActionsOptions,
   type ExistingPlanData,
   type PlanActions,
   type PlanImportFile,
 } from '../lib/planImport'
-import { inBlock, type BlockKey } from '../lib/groupSets'
+import { blockKeyString, groupSetsIntoBlocks, inBlock, type BlockKey } from '../lib/groupSets'
 import { db } from './db'
 import { getSetting } from './settings'
 import { NO_TAG, type WeightUnit, type WorkoutSet } from './types'
 
 export { validatePlanImportFile } from '../lib/planImport'
-export type { PlanImportFile } from '../lib/planImport'
+export type { PlanImportFile, PlanImportMode } from '../lib/planImport'
 
 async function loadExistingPlanData(): Promise<ExistingPlanData> {
   const [exercises, tags, bodyParts, days, sets] = await Promise.all([
@@ -22,7 +23,22 @@ async function loadExistingPlanData(): Promise<ExistingPlanData> {
     db.days.toArray(),
     db.sets.toArray(),
   ])
+  const setsByDate = new Map<string, WorkoutSet[]>()
+  for (const s of [...sets].sort((a, b) => a.orderInDay - b.orderInDay)) {
+    const list = setsByDate.get(s.date)
+    if (list) list.push(s)
+    else setsByDate.set(s.date, [s])
+  }
   return {
+    blocks: [...setsByDate].flatMap(([date, daySets]) =>
+      groupSetsIntoBlocks(daySets).map((b) => ({
+        date,
+        exerciseId: b.exerciseId,
+        tagId: b.tagId,
+        round: b.round,
+        setCount: b.sets.length,
+      })),
+    ),
     exercises: exercises.map((e) => ({ id: e.id, name: e.name })),
     tags: tags.map((t) => ({ id: t.id, name: t.name })),
     bodyPartNames: new Set(bodyParts.map((p) => p.name)),
@@ -57,8 +73,9 @@ async function resolveOrCreateLocationId(name: string): Promise<string> {
 
 /**
  * プランを取り込む。既存記録がない date + 種目×タグ×回目 の組み合わせにはセットを追加する
- * (`docs/decisions.md` ADR-010)。`options.overwrite` を true にすると、既に記録がある
+ * (`docs/decisions.md` ADR-010)。`options.mode` が 'overwrite' なら、既に記録がある
  * ブロックもスキップせず、既存セットを削除してから新セットで置き換える(ADR-012)。
+ * 'replaceDay' なら、ファイルに含まれる日の全セットを消してから並び順どおりに入れ直す(ADR-016)。
  * 未登録の種目・タグは name 一致で新規作成する。返り値は実行結果(プレビューと同じ形)。
  */
 export async function applyPlanImport(
@@ -76,6 +93,7 @@ export async function applyPlanImport(
         db.bodyParts.toArray(),
       ])
       const actions = computePlanActions(file, await loadExistingPlanData(), options)
+      const replaceDay = planImportModeOf(options) === 'replaceDay'
 
       let bodyPartSortOrder = bodyParts.length
         ? Math.max(...bodyParts.map((p) => p.sortOrder)) + 1
@@ -120,6 +138,45 @@ export async function applyPlanImport(
         await db.days.add({ date: d.date, locationId })
       }
 
+      // replaceDay: ファイルに含まれる日の全セットを先に消す(ADR-016)。新プランにも同じブロックが
+      // あれば、ユーザーのセットメモ(セット順)と種目メモを引き継ぐ。無いブロックのメモは消す
+      const carriedMemos = new Map<string, (string | undefined)[]>()
+      if (replaceDay) {
+        const newDayDates = new Set(actions.newDays.map((d) => d.date))
+        const planKeys = new Set(
+          actions.overwriteBlocks.map((b) => {
+            const exerciseId = exerciseIdByName.get(b.exerciseName) ?? ''
+            const tagId = b.tagName ? (tagIdByName.get(b.tagName) ?? '') : NO_TAG
+            return `${b.date}|${blockKeyString({ exerciseId, tagId, round: b.round })}`
+          }),
+        )
+        for (const day of file.days) {
+          if (!newDayDates.has(day.date) && day.location?.trim()) {
+            const locationId = await resolveOrCreateLocationId(day.location)
+            await db.days.update(day.date, { locationId })
+          }
+          const daySets = (await db.sets.where('date').equals(day.date).toArray()).sort(
+            (a, b) => a.orderInDay - b.orderInDay,
+          )
+          for (const s of daySets) {
+            const k = `${s.date}|${blockKeyString({ ...s, round: s.round ?? 0 })}`
+            carriedMemos.set(k, [...(carriedMemos.get(k) ?? []), s.memo])
+          }
+          await db.sets.bulkDelete(daySets.map((s) => s.id))
+          const notes = await db.blockNotes.where('date').equals(day.date).toArray()
+          await db.blockNotes.bulkDelete(
+            notes
+              .filter((n) => !planKeys.has(`${n.date}|${blockKeyString(n)}`))
+              .map((n): [string, string, string, number] => [
+                n.date,
+                n.exerciseId,
+                n.tagId,
+                n.round,
+              ]),
+          )
+        }
+      }
+
       // ファイルの並び順(= 実施順)どおりに書き込む。追加は日の末尾へ、上書きは元のブロックの
       // 位置へ置き換える(ADR-015)。上書き時、ユーザーが書いたセットメモ(sets.memo)は
       // セット順で引き継ぐ(ADR-013)
@@ -149,7 +206,10 @@ export async function applyPlanImport(
 
         let carried: (string | undefined)[] | undefined
         let basePosition: number | undefined
-        if (overwrite) {
+        if (overwrite && replaceDay) {
+          // 既に消してあるので、メモだけ受け取って新プランの並び順の位置に入れる
+          carried = carriedMemos.get(`${block.date}|${blockKeyString(key)}`)
+        } else if (overwrite) {
           const oldSets = (await db.sets.where('date').equals(block.date).toArray())
             .filter((s) => inBlock(s, key))
             .sort((a, b) => a.orderInDay - b.orderInDay)

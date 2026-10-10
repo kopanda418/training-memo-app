@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Modal } from '../../components/Modal'
 import { showToast } from '../../components/Toast'
 import { applyPlanImport, previewPlanImport, validatePlanImportFile } from '../../db/planImport'
-import type { PlanActions, PlanImportFile } from '../../lib/planImport'
+import type { PlanActions, PlanImportFile, PlanImportMode } from '../../lib/planImport'
 
 interface PlanImportModalProps {
   open: boolean
@@ -12,23 +12,33 @@ interface PlanImportModalProps {
 const blockLabel = (b: { date: string; exerciseName: string; tagName?: string; round: number }) =>
   `${b.date} ${b.exerciseName}${b.tagName ? `(${b.tagName})` : ''}${b.round ? ` ${b.round + 1}回目` : ''}`
 
+const MODES: { mode: PlanImportMode; label: string; hint: string }[] = [
+  { mode: 'skip', label: '上書きしない', hint: '既に記録がある種目はスキップ' },
+  { mode: 'overwrite', label: '重複のみ上書き', hint: '重なった種目だけ置き換え、他は残す' },
+  {
+    mode: 'replaceDay',
+    label: '同日を全て置き換え',
+    hint: 'ファイルにある日の記録を全部消してから入れ直す',
+  },
+]
+
 /**
  * プラン取り込み。既定では既存データを書き換えず、まだ記録がない
  * date+種目×タグ にだけセットを追加する(docs/decisions.md ADR-010)。
- * 「重複分を上書きする」を ON にすると、既に記録があるブロックも既存セットを削除して
- * 置き換える(確認ダイアログあり、ADR-012)。ファイル選択 → プレビュー確認 → 取り込みの2段階
+ * 重複の扱いは 3 択(ADR-016): 上書きしない / 重複のみ上書き(ADR-012)/ 同日を全て置き換え。
+ * 書き換えを伴うときは確認ダイアログを出す。ファイル選択 → プレビュー確認 → 取り込みの2段階
  */
 export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<PlanImportFile | null>(null)
   const [preview, setPreview] = useState<PlanActions | null>(null)
-  const [overwrite, setOverwrite] = useState(false)
+  const [mode, setMode] = useState<PlanImportMode>('skip')
   const [busy, setBusy] = useState(false)
 
   const reset = () => {
     setFile(null)
     setPreview(null)
-    setOverwrite(false)
+    setMode('skip')
   }
 
   const handleClose = () => {
@@ -40,31 +50,49 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
     try {
       const parsed = validatePlanImportFile(JSON.parse(await rawFile.text()))
       setFile(parsed)
-      setPreview(await previewPlanImport(parsed, { overwrite }))
+      setPreview(await previewPlanImport(parsed, { mode }))
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'プランファイルを読み込めませんでした')
     }
   }
 
-  const handleToggleOverwrite = async (checked: boolean) => {
-    setOverwrite(checked)
-    if (file) setPreview(await previewPlanImport(file, { overwrite: checked }))
+  const handleChangeMode = async (next: PlanImportMode) => {
+    setMode(next)
+    if (file) setPreview(await previewPlanImport(file, { mode: next }))
   }
 
   const handleApply = async () => {
     if (!file || !preview) return
-    if (overwrite && preview.overwriteBlocks.length > 0) {
+    if (mode === 'overwrite' && preview.overwriteBlocks.length > 0) {
       const list = preview.overwriteBlocks.map((b) => `・${blockLabel(b)}`).join('\n')
       const ok = window.confirm(`次の記録は既存データと重複しています。上書きしますか?\n\n${list}`)
       if (!ok) return
     }
+    if (
+      mode === 'replaceDay' &&
+      (preview.removeBlocks.length > 0 || preview.overwriteBlocks.length > 0)
+    ) {
+      const touched = [...preview.removeBlocks, ...preview.overwriteBlocks].map((b) => b.date)
+      const dates = [...new Set(touched)].sort()
+      const removed = preview.removeBlocks.length
+        ? '\n\n【削除される種目】\n' +
+          preview.removeBlocks.map((b) => `・${blockLabel(b)}(${b.setCount}セット)`).join('\n')
+        : ''
+      const ok = window.confirm(
+        '次の日の記録を全て消してから、プランの内容を入れ直します。' +
+          `実際に記録したセットも消えます。よろしいですか?\n\n${dates.join(' / ')}${removed}`,
+      )
+      if (!ok) return
+    }
     setBusy(true)
     try {
-      const result = await applyPlanImport(file, { overwrite })
+      const result = await applyPlanImport(file, { mode })
       showToast(
         `取り込みました(追加 ${result.addBlocks.length} 件` +
-          (overwrite ? ` / 上書き ${result.overwriteBlocks.length} 件` : '') +
-          ` / スキップ ${result.skipBlocks.length} 件)`,
+          (mode !== 'skip' ? ` / 上書き ${result.overwriteBlocks.length} 件` : '') +
+          (mode === 'replaceDay' ? ` / 削除 ${result.removeBlocks.length} 件` : '') +
+          (mode === 'skip' ? ` / スキップ ${result.skipBlocks.length} 件` : '') +
+          ')',
       )
       handleClose()
     } catch (e) {
@@ -78,8 +106,8 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
     <Modal open={open} onClose={handleClose} title="プラン取り込み">
       <div className="flex flex-col gap-3">
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          まだ記録がない日付×種目×タグの組み合わせにセットを追加します。既に記録がある組み合わせは
-          既定ではスキップされますが、「重複分を上書きする」を選ぶと確認のうえ置き換えられます
+          まだ記録がない日付×種目×タグの組み合わせにセットを追加します。既に記録がある日の扱いは、
+          ファイルを選んだあとに 3 つから選べます
         </p>
 
         {!preview && (
@@ -145,18 +173,54 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
               </ul>
             </div>
 
-            {(preview.skipBlocks.length > 0 || preview.overwriteBlocks.length > 0) && (
+            {(preview.skipBlocks.length > 0 ||
+              preview.overwriteBlocks.length > 0 ||
+              preview.removeBlocks.length > 0 ||
+              mode !== 'skip') && (
               <div>
-                <label className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
-                  <input
-                    type="checkbox"
-                    checked={overwrite}
-                    onChange={(e) => void handleToggleOverwrite(e.target.checked)}
-                    disabled={busy}
-                  />
-                  重複分を上書きする
-                </label>
-                {overwrite ? (
+                <p className="mb-1 text-xs font-bold text-slate-500 dark:text-slate-400">
+                  既に記録がある日の扱い
+                </p>
+                <div className="mb-2 flex flex-col gap-1">
+                  {MODES.map((m) => (
+                    <label
+                      key={m.mode}
+                      className={`flex items-start gap-2 rounded-lg border px-2 py-1.5 text-xs ${
+                        mode === m.mode
+                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-950'
+                          : 'border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="plan-import-mode"
+                        className="mt-0.5"
+                        checked={mode === m.mode}
+                        onChange={() => void handleChangeMode(m.mode)}
+                        disabled={busy}
+                      />
+                      <span>
+                        <span className="font-bold text-slate-700 dark:text-slate-200">
+                          {m.label}
+                        </span>
+                        <span className="block text-slate-500 dark:text-slate-400">{m.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {mode === 'skip' && (
+                  <>
+                    <p className="mb-1 text-xs font-bold text-slate-400">
+                      スキップ(既に記録あり) {preview.skipBlocks.length} 件
+                    </p>
+                    <ul className="max-h-24 overflow-y-auto text-xs text-slate-400">
+                      {preview.skipBlocks.map((b, i) => (
+                        <li key={i}>{blockLabel(b)}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {mode !== 'skip' && (
                   <>
                     <p className="mb-1 text-xs font-bold text-amber-600 dark:text-amber-400">
                       上書き(既存セットを削除して置き換え) {preview.overwriteBlocks.length} 件
@@ -167,15 +231,21 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
                       ))}
                     </ul>
                   </>
-                ) : (
+                )}
+                {mode === 'replaceDay' && (
                   <>
-                    <p className="mb-1 text-xs font-bold text-slate-400">
-                      スキップ(既に記録あり) {preview.skipBlocks.length} 件
+                    <p className="mt-2 mb-1 text-xs font-bold text-red-600 dark:text-red-400">
+                      削除(新しいプランに無い種目) {preview.removeBlocks.length} 件
                     </p>
-                    <ul className="max-h-24 overflow-y-auto text-xs text-slate-400">
-                      {preview.skipBlocks.map((b, i) => (
-                        <li key={i}>{blockLabel(b)}</li>
+                    <ul className="max-h-24 overflow-y-auto text-xs text-red-600 dark:text-red-400">
+                      {preview.removeBlocks.map((b, i) => (
+                        <li key={i}>
+                          {blockLabel(b)} — {b.setCount}セット
+                        </li>
                       ))}
+                      {preview.removeBlocks.length === 0 && (
+                        <li className="text-slate-400">削除される種目はありません</li>
+                      )}
                     </ul>
                   </>
                 )}
@@ -198,7 +268,9 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
                 disabled={
                   busy ||
                   preview.errors.length > 0 ||
-                  (preview.addBlocks.length === 0 && preview.overwriteBlocks.length === 0)
+                  (preview.addBlocks.length === 0 &&
+                    preview.overwriteBlocks.length === 0 &&
+                    preview.removeBlocks.length === 0)
                 }
               >
                 取り込む

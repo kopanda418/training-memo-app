@@ -452,7 +452,7 @@ export function SettingsPage() {
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
           外部で作成したトレーニングプランのセットを取り込みます(上の「復元する」とは別の経路)。
           既定ではまだ記録がない日付×種目×タグにだけ追加し、既存の組み合わせはスキップします。
-          確認のうえ上書きすることも選べます
+          確認のうえ「重複のみ上書き」「同日を全て置き換え」も選べます
         </p>
         <button
           type="button"

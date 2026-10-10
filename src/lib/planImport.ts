@@ -101,6 +101,8 @@ export interface ExistingPlanData {
   dayDates: ReadonlySet<string>
   /** 既存セットの `date|exerciseId|tagId|round` キー集合(スキップ判定用) */
   setKeys: ReadonlySet<string>
+  /** 既存のブロック一覧(replaceDay で削除される種目のプレビュー用。ADR-016) */
+  blocks?: { date: string; exerciseId: string; tagId: string; round: number; setCount: number }[]
 }
 
 export function setKeyOf(date: string, exerciseId: string, tagId: string, round = 0): string {
@@ -133,16 +135,36 @@ export interface PlanActions {
   addBlocks: PlanBlock[]
   /** 既存セットを削除して置き換えるブロック(overwrite 指定時のみ発生) */
   overwriteBlocks: PlanBlock[]
-  /** 既に記録があるためスキップするブロック(overwrite 未指定時) */
+  /** 既に記録があるためスキップするブロック(mode: skip のとき) */
   skipBlocks: { date: string; exerciseName: string; tagName?: string; round: number }[]
+  /** 新プランに無いため削除されるブロック(mode: replaceDay のときのみ。ADR-016) */
+  removeBlocks: {
+    date: string
+    exerciseName: string
+    tagName?: string
+    round: number
+    setCount: number
+  }[]
   /** 取り込み不可のエラー(該当項目は addBlocks に含まれない) */
   errors: string[]
 }
 
+/**
+ * 既存記録との重複の扱い(ADR-016)
+ * - skip: 重複ブロックはスキップ(既定)
+ * - overwrite: 重複ブロックだけ置き換え、他の既存ブロックは残す
+ * - replaceDay: ファイルに含まれる日の全セットを消してから入れ直す
+ */
+export type PlanImportMode = 'skip' | 'overwrite' | 'replaceDay'
+
 export interface ComputePlanActionsOptions {
-  /** true の場合、既存記録があるブロックをスキップせず overwriteBlocks へ回す */
+  mode?: PlanImportMode
+  /** @deprecated mode: 'overwrite' と同じ(互換用) */
   overwrite?: boolean
 }
+
+export const planImportModeOf = (options?: ComputePlanActionsOptions): PlanImportMode =>
+  options?.mode ?? (options?.overwrite ? 'overwrite' : 'skip')
 
 /**
  * プランファイルと現在の db 状態から、実行すべきアクションを計算する純粋関数。
@@ -153,7 +175,8 @@ export function computePlanActions(
   existing: ExistingPlanData,
   options?: ComputePlanActionsOptions,
 ): PlanActions {
-  const overwrite = options?.overwrite ?? false
+  const mode = planImportModeOf(options)
+  const overwrite = mode !== 'skip'
   const actions: PlanActions = {
     createBodyParts: [],
     createExercises: [],
@@ -162,6 +185,7 @@ export function computePlanActions(
     addBlocks: [],
     overwriteBlocks: [],
     skipBlocks: [],
+    removeBlocks: [],
     errors: [],
   }
 
@@ -245,6 +269,30 @@ export function computePlanActions(
       } else {
         actions.addBlocks.push(block)
       }
+    }
+  }
+
+  if (mode === 'replaceDay') {
+    // 新プランで同じ 日付×種目×タグ×回目 に当たらない既存ブロックは削除される
+    const planKeys = new Set<string>()
+    for (const b of [...actions.addBlocks, ...actions.overwriteBlocks]) {
+      const ex = exerciseByName.get(b.exerciseName)
+      const tagId = b.tagName ? tagByName.get(b.tagName)?.id : NO_TAG
+      if (ex && tagId !== undefined) planKeys.add(setKeyOf(b.date, ex.id, tagId, b.round))
+    }
+    const planDates = new Set(file.days.map((d) => d.date))
+    const exerciseNameById = new Map(existing.exercises.map((e) => [e.id, e.name]))
+    const tagNameById = new Map(existing.tags.map((t) => [t.id, t.name]))
+    for (const b of existing.blocks ?? []) {
+      if (!planDates.has(b.date)) continue
+      if (planKeys.has(setKeyOf(b.date, b.exerciseId, b.tagId, b.round))) continue
+      actions.removeBlocks.push({
+        date: b.date,
+        exerciseName: exerciseNameById.get(b.exerciseId) ?? '(不明な種目)',
+        tagName: b.tagId === NO_TAG ? undefined : (tagNameById.get(b.tagId) ?? '(不明なタグ)'),
+        round: b.round,
+        setCount: b.setCount,
+      })
     }
   }
 
