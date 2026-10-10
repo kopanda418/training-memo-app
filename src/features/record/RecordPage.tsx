@@ -4,7 +4,14 @@ import { useNavigate, useSearchParams } from 'react-router'
 import { useMasters } from '../../db/hooks'
 import { listSetsByDate } from '../../db/repository'
 import { addDays, formatDateLabel, todayString } from '../../lib/date'
-import { groupSetsIntoBlocks, type SetBlock } from '../../lib/groupSets'
+import {
+  blockKeyString,
+  groupSetsIntoBlocks,
+  nextRound,
+  roundLabels,
+  type BlockKey,
+  type SetBlock,
+} from '../../lib/groupSets'
 import { KeyboardTimerButton } from '../timer/KeyboardTimerButton'
 import { ConditionChip } from './ConditionChip'
 import { DayNoteRow } from './DayNoteRow'
@@ -18,11 +25,6 @@ import {
   useRestoreRecordScroll,
 } from './recordScroll'
 import { TemplateModal } from './TemplateModal'
-
-interface BlockKey {
-  exerciseId: string
-  tagId: string
-}
 
 export function RecordPage() {
   const [params, setParams] = useSearchParams()
@@ -52,28 +54,35 @@ export function RecordPage() {
     setEmptyBlocks([])
   }
 
-  const { blocks, recordedCount } = useMemo(() => {
-    const grouped = groupSetsIntoBlocks(sets ?? [])
-    const recordedCount = grouped.length
-    const seen = new Set(grouped.map((b) => `${b.exerciseId}|${b.tagId}`))
-    for (const b of emptyBlocks) {
-      if (!seen.has(`${b.exerciseId}|${b.tagId}`)) grouped.push({ ...b, sets: [] })
-    }
-    return { blocks: grouped as SetBlock[], recordedCount }
-  }, [sets, emptyBlocks])
+  const recordedBlocks = useMemo(() => groupSetsIntoBlocks(sets ?? []), [sets])
+  // セットが入って記録済みになった仮ブロックは外す(削除後に空の器として復活させないため)
+  const recordedKeys = new Set(recordedBlocks.map(blockKeyString))
+  if (emptyBlocks.some((b) => recordedKeys.has(blockKeyString(b)))) {
+    setEmptyBlocks(emptyBlocks.filter((b) => !recordedKeys.has(blockKeyString(b))))
+  }
 
+  const { blocks, recordedCount, labels } = useMemo(() => {
+    const keys = new Set(recordedBlocks.map(blockKeyString))
+    const grouped: SetBlock[] = [
+      ...recordedBlocks,
+      ...emptyBlocks.filter((b) => !keys.has(blockKeyString(b))).map((b) => ({ ...b, sets: [] })),
+    ]
+    return { blocks: grouped, recordedCount: recordedBlocks.length, labels: roundLabels(grouped) }
+  }, [recordedBlocks, emptyBlocks])
+
+  // 既にある種目×タグを選んだら、一番下に次の回目のブロックを作る(ADR-015)。
+  // ただしセット未入力の仮ブロックが既にあれば、それを使う(二重に作らない)
   const handlePicked = (exerciseId: string, tagId: string) => {
-    setEmptyBlocks((prev) =>
-      prev.some((b) => b.exerciseId === exerciseId && b.tagId === tagId)
-        ? prev
-        : [...prev, { exerciseId, tagId }],
-    )
+    setEmptyBlocks((prev) => {
+      if (prev.some((b) => b.exerciseId === exerciseId && b.tagId === tagId)) return prev
+      const round = nextRound(sets ?? [], exerciseId, tagId)
+      return [...prev, { exerciseId, tagId, round }]
+    })
   }
 
   const removeEmptyBlock = (block: BlockKey) => {
-    setEmptyBlocks((prev) =>
-      prev.filter((b) => !(b.exerciseId === block.exerciseId && b.tagId === block.tagId)),
-    )
+    const key = blockKeyString(block)
+    setEmptyBlocks((prev) => prev.filter((b) => blockKeyString(b) !== key))
   }
 
   return (
@@ -140,10 +149,12 @@ export function RecordPage() {
         )}
         {blocks.map((block, i) => (
           <ExerciseBlock
-            key={`${block.exerciseId}|${block.tagId}`}
+            key={blockKeyString(block)}
             date={date}
             exerciseId={block.exerciseId}
             tagId={block.tagId}
+            round={block.round}
+            roundLabel={labels[i]}
             exerciseName={exerciseName(block.exerciseId)}
             tagName={tagName(block.tagId)}
             sets={block.sets}

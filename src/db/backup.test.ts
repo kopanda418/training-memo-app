@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { BACKUP_FORMAT_VERSION, exportData, importData, validateBackup } from './backup'
 import { db } from './db'
 import { addSet, setBlockNote, setDayLocation, setDayNote } from './repository'
+import { NO_TAG } from './types'
+
+/** テスト用のブロックキー(種目×タグ×回目) */
+const B = (exerciseId: string, tagId: string = NO_TAG, round = 0) => ({ exerciseId, tagId, round })
 
 beforeEach(async () => {
   await db.delete()
@@ -16,7 +20,7 @@ describe('エクスポート → 全削除 → インポートで復元できる
     await addSet({ date: '2026-07-03', exerciseId: ex.id, tagId: heavy.id, weight: 100, reps: 5 })
     await setDayLocation('2026-07-03', 'ゴールドジム')
     await setDayNote('2026-07-03', '体調は普通')
-    await setBlockNote('2026-07-03', ex.id, heavy.id, 'フォーム意識')
+    await setBlockNote('2026-07-03', B(ex.id, heavy.id), 'フォーム意識')
     await db.settings.put({ key: 'theme', value: 'dark' })
 
     const backup = await exportData()
@@ -53,7 +57,9 @@ describe('エクスポート → 全削除 → インポートで復元できる
 describe('書き出しの網羅性', () => {
   it('DB の全テーブルがバックアップの data に含まれる(テーブル追加時の入れ忘れ防止)', async () => {
     const backup = await exportData()
-    expect(Object.keys(backup.data).sort()).toEqual(db.tables.map((t) => t.name).sort())
+    // blockNotesV2 は書き出しでは従来どおり blockNotes の名前で出す(ADR-015)
+    const tableNames = db.tables.map((t) => (t.name === 'blockNotesV2' ? 'blockNotes' : t.name))
+    expect(Object.keys(backup.data).sort()).toEqual(tableNames.sort())
   })
 })
 

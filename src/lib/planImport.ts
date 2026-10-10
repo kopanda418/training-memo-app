@@ -99,18 +99,25 @@ export interface ExistingPlanData {
   bodyPartNames: ReadonlySet<string>
   /** 既に days レコードがある日付 */
   dayDates: ReadonlySet<string>
-  /** 既存セットの `date|exerciseId|tagId` キー集合(スキップ判定用) */
+  /** 既存セットの `date|exerciseId|tagId|round` キー集合(スキップ判定用) */
   setKeys: ReadonlySet<string>
 }
 
-export function setKeyOf(date: string, exerciseId: string, tagId: string): string {
-  return `${date}|${exerciseId}|${tagId}`
+export function setKeyOf(date: string, exerciseId: string, tagId: string, round = 0): string {
+  return `${date}|${exerciseId}|${tagId}|${round}`
 }
 
 export interface PlanBlock {
   date: string
   exerciseName: string
   tagName?: string
+  /**
+   * 回目(ADR-015)。同じ日の items に同じ種目×タグが複数あれば、出現順に 0, 1, 2…
+   * items の並び順 = 実施順
+   */
+  round: number
+  /** ファイル内の出現順(追加と上書きを並び順どおりに書き込むため) */
+  seq: number
   /** 種目単位のプラン指示(blockNotes.planNote へ書く) */
   note?: string
   sets: PlanSetInput[]
@@ -127,7 +134,7 @@ export interface PlanActions {
   /** 既存セットを削除して置き換えるブロック(overwrite 指定時のみ発生) */
   overwriteBlocks: PlanBlock[]
   /** 既に記録があるためスキップするブロック(overwrite 未指定時) */
-  skipBlocks: { date: string; exerciseName: string; tagName?: string }[]
+  skipBlocks: { date: string; exerciseName: string; tagName?: string; round: number }[]
   /** 取り込み不可のエラー(該当項目は addBlocks に含まれない) */
   errors: string[]
 }
@@ -164,9 +171,12 @@ export function computePlanActions(
   const pendingTagNames = new Set<string>()
   const pendingBodyPartNames = new Set<string>()
   const newDayDates = new Set<string>()
+  let seq = 0
 
   for (const day of file.days) {
     const date = day.date
+    // 同じ日に同じ種目×タグが何回目か(名前で数える。ADR-015)
+    const occurrences = new Map<string, number>()
     if (!existing.dayDates.has(date) && !newDayDates.has(date)) {
       newDayDates.add(date)
       actions.newDays.push({ date, location: day.location?.trim() || undefined })
@@ -209,17 +219,31 @@ export function computePlanActions(
         }
       }
 
+      const occurrenceKey = `${exerciseName}|${tagName ?? ''}`
+      const round = occurrences.get(occurrenceKey) ?? 0
+      occurrences.set(occurrenceKey, round + 1)
+
       const canCheckSkip = !!existingExercise && existingTagId !== undefined
       const hasConflict =
-        canCheckSkip && existing.setKeys.has(setKeyOf(date, existingExercise!.id, existingTagId!))
+        canCheckSkip &&
+        existing.setKeys.has(setKeyOf(date, existingExercise!.id, existingTagId!, round))
 
       const note = item.note?.trim() || undefined
+      const block: PlanBlock = {
+        date,
+        exerciseName,
+        tagName,
+        round,
+        seq: seq++,
+        note,
+        sets: item.sets,
+      }
       if (hasConflict && !overwrite) {
-        actions.skipBlocks.push({ date, exerciseName, tagName })
+        actions.skipBlocks.push({ date, exerciseName, tagName, round })
       } else if (hasConflict && overwrite) {
-        actions.overwriteBlocks.push({ date, exerciseName, tagName, note, sets: item.sets })
+        actions.overwriteBlocks.push(block)
       } else {
-        actions.addBlocks.push({ date, exerciseName, tagName, note, sets: item.sets })
+        actions.addBlocks.push(block)
       }
     }
   }

@@ -82,6 +82,8 @@ describe('computePlanActions', () => {
         date: '2026-07-14',
         exerciseName: 'ベンチプレス',
         tagName: '高重量',
+        round: 0,
+        seq: 0,
         sets: [{ weight: 80, memo: '目標 5reps' }],
       },
     ])
@@ -135,7 +137,7 @@ describe('computePlanActions', () => {
     expect(actions.addBlocks).toEqual([])
     expect(actions.overwriteBlocks).toEqual([])
     expect(actions.skipBlocks).toEqual([
-      { date: '2026-07-14', exerciseName: 'ベンチプレス', tagName: undefined },
+      { date: '2026-07-14', exerciseName: 'ベンチプレス', tagName: undefined, round: 0 },
     ])
   })
 
@@ -158,6 +160,8 @@ describe('computePlanActions', () => {
         date: '2026-07-14',
         exerciseName: 'ベンチプレス',
         tagName: undefined,
+        round: 0,
+        seq: 0,
         sets: [{ weight: 90 }],
       },
     ])

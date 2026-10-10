@@ -9,8 +9,8 @@ interface PlanImportModalProps {
   onClose: () => void
 }
 
-const blockLabel = (b: { date: string; exerciseName: string; tagName?: string }) =>
-  `${b.date} ${b.exerciseName}${b.tagName ? `(${b.tagName})` : ''}`
+const blockLabel = (b: { date: string; exerciseName: string; tagName?: string; round: number }) =>
+  `${b.date} ${b.exerciseName}${b.tagName ? `(${b.tagName})` : ''}${b.round ? ` ${b.round + 1}回目` : ''}`
 
 /**
  * プラン取り込み。既定では既存データを書き換えず、まだ記録がない

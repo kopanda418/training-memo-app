@@ -1,4 +1,11 @@
-import { groupSetsIntoBlocks } from '../lib/groupSets'
+import {
+  blockKeyString,
+  groupSetsIntoBlocks,
+  inBlock,
+  nextRound,
+  roundOf,
+  type BlockKey,
+} from '../lib/groupSets'
 import { estimateOneRepMax } from '../lib/oneRepMax'
 import { effectiveLoad } from '../lib/setFormat'
 import { db } from './db'
@@ -37,6 +44,8 @@ export interface NewSetInput {
   isAssisted?: boolean
   unit?: WeightUnit
   memo?: string
+  /** 回目(省略 = 0。ADR-015) */
+  round?: number
 }
 
 /** セットを追加する。日レコードがなければ作り、orderInDay は日内の末尾になる */
@@ -63,6 +72,7 @@ export async function addSet(input: NewSetInput): Promise<WorkoutSet> {
       unit,
       memo: input.memo,
       orderInDay,
+      round: input.round || undefined,
       createdAt: Date.now(),
     }
     await db.sets.add(set)
@@ -97,13 +107,14 @@ export async function deleteSet(id: string): Promise<void> {
     const set = await db.sets.get(id)
     await db.sets.delete(id)
     if (!set) return
-    // このブロック(その日のその種目×タグ)が空になったら孤児メモを消す
+    // このブロック(その日のその種目×タグ×回目)が空になったら孤児メモを消す
+    const key: BlockKey = { exerciseId: set.exerciseId, tagId: set.tagId, round: roundOf(set) }
     const remaining = await db.sets
       .where('[exerciseId+tagId]')
       .equals([set.exerciseId, set.tagId])
-      .and((s) => s.date === set.date)
+      .and((s) => s.date === set.date && inBlock(s, key))
       .count()
-    if (remaining === 0) await db.blockNotes.delete([set.date, set.exerciseId, set.tagId])
+    if (remaining === 0) await db.blockNotes.delete(noteKey(set.date, key))
   })
 }
 
@@ -182,7 +193,11 @@ export async function setDayNote(date: string, note: string): Promise<void> {
   })
 }
 
-// ---- 種目×タグブロックの感想メモ(blockNotes) ----
+// ---- 種目×タグ×回目ブロックの感想メモ(blockNotes) ----
+
+type NoteKey = [string, string, string, number]
+
+const noteKey = (date: string, b: BlockKey): NoteKey => [date, b.exerciseId, b.tagId, b.round]
 
 /** 2 つのブロックメモを合流する(キー衝突時)。両方あれば改行連結、同一なら 1 つに畳む */
 function mergeNotes(a: string | undefined, b: string | undefined): string | undefined {
@@ -193,13 +208,9 @@ function mergeNotes(a: string | undefined, b: string | undefined): string | unde
   return `${x}\n${y}`
 }
 
-/** ブロック(種目×タグ)の感想メモを取得する */
-export async function getBlockNote(
-  date: string,
-  exerciseId: string,
-  tagId: string = NO_TAG,
-): Promise<BlockNote | undefined> {
-  return db.blockNotes.get([date, exerciseId, tagId])
+/** ブロック(種目×タグ×回目)の感想メモを取得する */
+export async function getBlockNote(date: string, block: BlockKey): Promise<BlockNote | undefined> {
+  return db.blockNotes.get(noteKey(date, block))
 }
 
 /**
@@ -207,24 +218,27 @@ export async function getBlockNote(
  * 空文字なら note を落とし、プラン欄(planNote)も無ければ行ごと削除する。
  * プラン欄は決して書き換えない(ADR-013)。
  */
-export async function setBlockNote(
-  date: string,
-  exerciseId: string,
-  tagId: string,
-  note: string,
-): Promise<void> {
+export async function setBlockNote(date: string, block: BlockKey, note: string): Promise<void> {
   const trimmed = note.trim()
+  const key = noteKey(date, block)
   await db.transaction('rw', [db.blockNotes], async () => {
-    const existing = await db.blockNotes.get([date, exerciseId, tagId])
+    const existing = await db.blockNotes.get(key)
     if (!trimmed) {
       if (existing?.planNote) {
         await db.blockNotes.put({ ...existing, note: undefined })
       } else {
-        await db.blockNotes.delete([date, exerciseId, tagId])
+        await db.blockNotes.delete(key)
       }
       return
     }
-    await db.blockNotes.put({ ...existing, date, exerciseId, tagId, note: trimmed })
+    await db.blockNotes.put({
+      ...existing,
+      date,
+      exerciseId: block.exerciseId,
+      tagId: block.tagId,
+      round: block.round,
+      note: trimmed,
+    })
   })
 }
 
@@ -243,11 +257,7 @@ export async function listBlockNotesByExercise(exerciseId: string): Promise<Bloc
  * 移動元にメモが無ければ何もしない。移動先に既存メモがあれば mergeNotes で合流する。
  * copy=true なら移動元を残す(コピー)。呼び出しトランザクションに db.blockNotes を含めること。
  */
-async function rekeyBlockNote(
-  from: [string, string, string],
-  to: [string, string, string],
-  copy = false,
-): Promise<void> {
+async function rekeyBlockNote(from: NoteKey, to: NoteKey, copy = false): Promise<void> {
   const src = await db.blockNotes.get(from)
   if (!src) return
   const dest = await db.blockNotes.get(to)
@@ -255,6 +265,7 @@ async function rekeyBlockNote(
     date: to[0],
     exerciseId: to[1],
     tagId: to[2],
+    round: to[3],
     note: mergeNotes(dest?.note, src.note),
     planNote: mergeNotes(dest?.planNote, src.planNote),
   })
@@ -302,24 +313,28 @@ export async function getLastSet(
 }
 
 /**
- * 種目×タグの「前回(targetDate より前の直近の日)」の全セットを targetDate 末尾にコピーする。
- * コピーしたセット数を返す(前回記録がなければ 0)
+ * 種目×タグの「前回(targetDate より前の直近の日)」のセットを targetDate 末尾にコピーする。
+ * 前回の日に同じ回目(options.round、省略 0)のブロックがあればそれを、無ければ最初のブロックを
+ * コピーし、コピー先の回目は options.round になる。コピーしたセット数を返す(前回記録がなければ 0)
  */
 export async function copyPreviousSession(
   targetDate: string,
   exerciseId: string,
   tagId: string = NO_TAG,
-  options?: { clearReps?: boolean },
+  options?: { clearReps?: boolean; round?: number },
 ): Promise<number> {
+  const round = options?.round ?? 0
   const defaultLocationId = await resolveDefaultLocationId()
   return db.transaction('rw', [db.sets, db.days], async () => {
     const history = await db.sets.where('[exerciseId+tagId]').equals([exerciseId, tagId]).toArray()
     const prevDates = history.filter((s) => s.date < targetDate).map((s) => s.date)
     if (!prevDates.length) return 0
     const sourceDate = prevDates.sort()[prevDates.length - 1]
-    const sourceSets = history
+    const sourceDay = history
       .filter((s) => s.date === sourceDate)
       .sort((a, b) => a.orderInDay - b.orderInDay)
+    const sourceRound = sourceDay.some((s) => roundOf(s) === round) ? round : roundOf(sourceDay[0])
+    const sourceSets = sourceDay.filter((s) => roundOf(s) === sourceRound)
 
     const existing = await db.sets.where('date').equals(targetDate).toArray()
     let order = existing.length ? Math.max(...existing.map((s) => s.orderInDay)) + 1 : 0
@@ -331,6 +346,7 @@ export async function copyPreviousSession(
         date: targetDate,
         // clearReps: 実績はこれから積むので空欄にする(テンプレート展開用)
         reps: options?.clearReps ? 0 : s.reps,
+        round: round || undefined,
         orderInDay: order++,
         createdAt: now,
       })),
@@ -355,63 +371,61 @@ export interface TransferOptions {
   fromDate: string
   toDate: string
   mode: 'copy' | 'move'
-  /** 指定すると、その種目×タグのブロックだけを対象にする(未指定なら日全体) */
-  exerciseId?: string
-  tagId?: string
+  /** 指定すると、そのブロック(種目×タグ×回目)だけを対象にする(未指定なら日全体) */
+  block?: BlockKey
 }
 
 /**
- * 記録を別の日へコピー/移動する(日全体または種目×タグ単位)。
+ * 記録を別の日へコピー/移動する(日全体またはブロック単位)。
+ * 移動先に同じ種目×タグが既にあっても合流させず、空いている回目を振って末尾に足す(ADR-015)。
  * 移動元/先は 1 トランザクション。移動でセットが空になった日は days レコードも削除する。
  * 対象セット数を返す。
  */
 export async function transferSets(options: TransferOptions): Promise<number> {
-  const { fromDate, toDate, mode, exerciseId } = options
-  const tagId = options.tagId ?? NO_TAG
+  const { fromDate, toDate, mode, block } = options
   if (fromDate === toDate) return 0
   const defaultLocationId = await resolveDefaultLocationId()
   return db.transaction('rw', [db.sets, db.days, db.blockNotes], async () => {
-    let source = await db.sets.where('date').equals(fromDate).toArray()
-    if (exerciseId !== undefined) {
-      source = source.filter((s) => s.exerciseId === exerciseId && s.tagId === tagId)
-    }
+    let source = await loadDaySorted(fromDate)
+    if (block) source = source.filter((s) => inBlock(s, block))
     if (!source.length) return 0
-    source.sort((a, b) => a.orderInDay - b.orderInDay)
 
     const existing = await db.sets.where('date').equals(toDate).toArray()
     let order = existing.length ? Math.max(...existing.map((s) => s.orderInDay)) + 1 : 0
 
+    // 移動元の各ブロックに、移動先で空いている回目を割り当てる
+    const sourceBlocks = groupSetsIntoBlocks(source)
+    const taken: BlockKey[] = existing.map((s) => ({ ...s, round: roundOf(s) }))
+    const roundMap = new Map<string, number>()
+    for (const b of sourceBlocks) {
+      const round = nextRound(taken, b.exerciseId, b.tagId)
+      roundMap.set(blockKeyString(b), round)
+      taken.push({ exerciseId: b.exerciseId, tagId: b.tagId, round })
+    }
+    const destRound = (s: WorkoutSet) =>
+      roundMap.get(
+        blockKeyString({ exerciseId: s.exerciseId, tagId: s.tagId, round: roundOf(s) }),
+      ) ?? 0
+
+    const moved = source.map((s) => ({
+      ...s,
+      date: toDate,
+      round: destRound(s) || undefined,
+      orderInDay: order++,
+    }))
     if (mode === 'copy') {
       const now = Date.now()
-      await db.sets.bulkAdd(
-        source.map((s) => ({
-          ...s,
-          id: crypto.randomUUID(),
-          date: toDate,
-          orderInDay: order++,
-          createdAt: now,
-        })),
-      )
+      await db.sets.bulkAdd(moved.map((s) => ({ ...s, id: crypto.randomUUID(), createdAt: now })))
     } else {
-      await db.sets.bulkPut(source.map((s) => ({ ...s, date: toDate, orderInDay: order++ })))
+      await db.sets.bulkPut(moved)
       const remaining = await db.sets.where('date').equals(fromDate).count()
       if (remaining === 0) await db.days.delete(fromDate)
     }
 
-    // ブロックメモを移動先へ追従させる(move=付け替え、copy=複製)。
-    // 日全体なら fromDate の全ブロックメモ、ブロック指定ならその 1 件が対象。
-    const copyNotes = mode === 'copy'
-    if (exerciseId !== undefined) {
-      await rekeyBlockNote([fromDate, exerciseId, tagId], [toDate, exerciseId, tagId], copyNotes)
-    } else {
-      const notes = await db.blockNotes.where('date').equals(fromDate).toArray()
-      for (const n of notes) {
-        await rekeyBlockNote(
-          [fromDate, n.exerciseId, n.tagId],
-          [toDate, n.exerciseId, n.tagId],
-          copyNotes,
-        )
-      }
+    // ブロックメモを移動先へ追従させる(move=付け替え、copy=複製)
+    for (const b of sourceBlocks) {
+      const to: BlockKey = { ...b, round: roundMap.get(blockKeyString(b)) ?? 0 }
+      await rekeyBlockNote(noteKey(fromDate, b), noteKey(toDate, to), mode === 'copy')
     }
 
     await ensureDay(toDate, defaultLocationId)
@@ -419,46 +433,45 @@ export async function transferSets(options: TransferOptions): Promise<number> {
   })
 }
 
+/** 日の全セットを表示順で読む(ブロック操作の共通前処理) */
+async function loadDaySorted(date: string): Promise<WorkoutSet[]> {
+  return (await db.sets.where('date').equals(date).toArray()).sort(
+    (a, b) => a.orderInDay - b.orderInDay,
+  )
+}
+
+/** ブロック並びどおりに orderInDay を 0 から振り直して保存する */
+async function saveBlockOrder(blocks: { sets: WorkoutSet[] }[]): Promise<void> {
+  let order = 0
+  await db.sets.bulkPut(blocks.flatMap((b) => b.sets.map((s) => ({ ...s, orderInDay: order++ }))))
+}
+
 /**
- * 日の種目×タグブロックを丸ごと削除する(全セット+ブロックメモ)。
+ * 日のブロック(種目×タグ×回目)を丸ごと削除する(全セット+ブロックメモ)。
  * 日のメモ・場所(days)は残す。残ったブロックの orderInDay は振り直す。削除したセット数を返す
  */
-export async function deleteBlockInDay(
-  date: string,
-  exerciseId: string,
-  tagId: string,
-): Promise<number> {
+export async function deleteBlockInDay(date: string, block: BlockKey): Promise<number> {
   return db.transaction('rw', [db.sets, db.blockNotes], async () => {
-    const sets = (await db.sets.where('date').equals(date).toArray()).sort(
-      (a, b) => a.orderInDay - b.orderInDay,
-    )
-    const target = sets.filter((s) => s.exerciseId === exerciseId && s.tagId === tagId)
+    const sets = await loadDaySorted(date)
+    const target = sets.filter((s) => inBlock(s, block))
     if (!target.length) return 0
     await db.sets.bulkDelete(target.map((s) => s.id))
-    await db.blockNotes.delete([date, exerciseId, tagId])
-    let order = 0
-    await db.sets.bulkPut(
-      sets
-        .filter((s) => !(s.exerciseId === exerciseId && s.tagId === tagId))
-        .map((s) => ({ ...s, orderInDay: order++ })),
-    )
+    await db.blockNotes.delete(noteKey(date, block))
+    await saveBlockOrder([{ sets: sets.filter((s) => !inBlock(s, block)) }])
     return target.length
   })
 }
 
-/** 日の中で種目×タグブロックの表示順を 1 つ上/下、または先頭/末尾へ移動する(orderInDay を振り直す) */
+/** 日の中でブロックの表示順を 1 つ上/下、または先頭/末尾へ移動する(orderInDay を振り直す) */
 export async function moveBlockInDay(
   date: string,
-  exerciseId: string,
-  tagId: string,
+  block: BlockKey,
   direction: 'up' | 'down' | 'top' | 'bottom',
 ): Promise<void> {
   await db.transaction('rw', [db.sets], async () => {
-    const sets = (await db.sets.where('date').equals(date).toArray()).sort(
-      (a, b) => a.orderInDay - b.orderInDay,
-    )
-    const blocks = groupSetsIntoBlocks(sets)
-    const index = blocks.findIndex((b) => b.exerciseId === exerciseId && b.tagId === tagId)
+    const blocks = groupSetsIntoBlocks(await loadDaySorted(date))
+    const key = blockKeyString(block)
+    const index = blocks.findIndex((b) => blockKeyString(b) === key)
     if (index < 0) return
     const to =
       direction === 'top'
@@ -471,54 +484,44 @@ export async function moveBlockInDay(
     if (to < 0 || to >= blocks.length || to === index) return
     const [moved] = blocks.splice(index, 1)
     blocks.splice(to, 0, moved)
-    let order = 0
-    await db.sets.bulkPut(blocks.flatMap((b) => b.sets.map((s) => ({ ...s, orderInDay: order++ }))))
+    await saveBlockOrder(blocks)
   })
 }
 
 /**
- * 日の種目×タグブロックを指定順に並べ替える(並べ替え画面のドラッグ結果)。
- * orderedKeys は `${exerciseId}|${tagId}`。含まれないブロックは元の相対順で末尾に残す
+ * 日のブロックを指定順に並べ替える(並べ替え画面のドラッグ結果)。
+ * orderedKeys は blockKeyString(`${exerciseId}|${tagId}|${round}`)。含まれないブロックは元の相対順で末尾に残す
  */
 export async function reorderBlocksInDay(date: string, orderedKeys: string[]): Promise<void> {
   await db.transaction('rw', [db.sets], async () => {
-    const sets = (await db.sets.where('date').equals(date).toArray()).sort(
-      (a, b) => a.orderInDay - b.orderInDay,
-    )
-    const blocks = groupSetsIntoBlocks(sets)
+    const blocks = groupSetsIntoBlocks(await loadDaySorted(date))
     const rank = new Map(orderedKeys.map((k, i) => [k, i]))
-    const keyOf = (b: { exerciseId: string; tagId: string }) => `${b.exerciseId}|${b.tagId}`
     const sorted = blocks
-      .map((b, i) => ({ b, r: rank.get(keyOf(b)) ?? orderedKeys.length + i }))
+      .map((b, i) => ({ b, r: rank.get(blockKeyString(b)) ?? orderedKeys.length + i }))
       .sort((x, y) => x.r - y.r)
       .map((x) => x.b)
-    let order = 0
-    await db.sets.bulkPut(sorted.flatMap((b) => b.sets.map((s) => ({ ...s, orderInDay: order++ }))))
+    await saveBlockOrder(sorted)
   })
 }
 
 /** ブロック内のセットを指定順に並べ替える(orderInDay を日全体で振り直す) */
 export async function reorderSetsInBlock(
   date: string,
-  exerciseId: string,
-  tagId: string,
+  block: BlockKey,
   orderedIds: string[],
 ): Promise<void> {
   await db.transaction('rw', [db.sets], async () => {
-    const sets = (await db.sets.where('date').equals(date).toArray()).sort(
-      (a, b) => a.orderInDay - b.orderInDay,
-    )
-    const blocks = groupSetsIntoBlocks(sets)
-    const block = blocks.find((b) => b.exerciseId === exerciseId && b.tagId === tagId)
-    if (!block) return
-    const byId = new Map(block.sets.map((s) => [s.id, s]))
+    const blocks = groupSetsIntoBlocks(await loadDaySorted(date))
+    const key = blockKeyString(block)
+    const target = blocks.find((b) => blockKeyString(b) === key)
+    if (!target) return
+    const byId = new Map(target.sets.map((s) => [s.id, s]))
     const reordered = orderedIds
       .map((id) => byId.get(id))
       .filter((s): s is WorkoutSet => s !== undefined)
-    if (reordered.length !== block.sets.length) return
-    block.sets = reordered
-    let order = 0
-    await db.sets.bulkPut(blocks.flatMap((b) => b.sets.map((s) => ({ ...s, orderInDay: order++ }))))
+    if (reordered.length !== target.sets.length) return
+    target.sets = reordered
+    await saveBlockOrder(blocks)
   })
 }
 
@@ -575,49 +578,34 @@ export async function toggleSetAttribute(setId: string, name: string): Promise<v
   })
 }
 
-/** 記録済みブロック(その日の種目×タグ)のタグを付け替える(全セットに適用) */
-export async function changeBlockTag(
+/**
+ * 記録済みブロックの種目またはタグを付け替える(全セットに適用、位置はそのまま)。
+ * 付け替え先に同じ種目×タグが既にあっても合流させず、空いている回目を振る(ADR-015)
+ */
+async function relabelBlock(
   date: string,
-  exerciseId: string,
-  fromTagId: string,
-  toTagId: string,
+  block: BlockKey,
+  to: { exerciseId: string; tagId: string },
 ): Promise<void> {
-  if (fromTagId === toTagId) return
+  if (to.exerciseId === block.exerciseId && to.tagId === block.tagId) return
   await db.transaction('rw', [db.sets, db.blockNotes], async () => {
-    const sets = await db.sets.where('date').equals(date).toArray()
-    const targets = sets.filter((s) => s.exerciseId === exerciseId && s.tagId === fromTagId)
-    await db.sets.bulkPut(targets.map((s) => ({ ...s, tagId: toTagId })))
-    await rekeyBlockNote([date, exerciseId, fromTagId], [date, exerciseId, toTagId])
+    const daySets = await db.sets.where('date').equals(date).toArray()
+    const targets = daySets.filter((s) => inBlock(s, block))
+    if (!targets.length) return
+    const round = nextRound(daySets, to.exerciseId, to.tagId)
+    await db.sets.bulkPut(targets.map((s) => ({ ...s, ...to, round: round || undefined })))
+    await rekeyBlockNote(noteKey(date, block), noteKey(date, { ...to, round }))
   })
 }
 
-/**
- * 記録済みブロック(その日の種目×タグ)の種目を付け替える(全セットに適用)。
- * 付け替え先に同じ種目×タグのブロックが既にある場合は、その末尾に連結される。
- */
-export async function changeBlockExercise(
-  date: string,
-  fromExerciseId: string,
-  tagId: string,
-  toExerciseId: string,
-): Promise<void> {
-  if (fromExerciseId === toExerciseId) return
-  await db.transaction('rw', [db.sets, db.blockNotes], async () => {
-    const daySets = (await db.sets.where('date').equals(date).toArray()).sort(
-      (a, b) => a.orderInDay - b.orderInDay,
-    )
-    const targets = daySets.filter((s) => s.exerciseId === fromExerciseId && s.tagId === tagId)
-    if (!targets.length) return
-    // 移動先ブロックの末尾 orderInDay を求める(既存ブロックがなければ対象の最小位置を維持)
-    const destExisting = daySets.filter((s) => s.exerciseId === toExerciseId && s.tagId === tagId)
-    let order = destExisting.length
-      ? Math.max(...destExisting.map((s) => s.orderInDay)) + 1
-      : Math.min(...targets.map((s) => s.orderInDay))
-    await db.sets.bulkPut(
-      targets.map((s) => ({ ...s, exerciseId: toExerciseId, orderInDay: order++ })),
-    )
-    await rekeyBlockNote([date, fromExerciseId, tagId], [date, toExerciseId, tagId])
-  })
+/** 記録済みブロックのタグを付け替える */
+export async function changeBlockTag(date: string, block: BlockKey, toTagId: string) {
+  await relabelBlock(date, block, { exerciseId: block.exerciseId, tagId: toTagId })
+}
+
+/** 記録済みブロックの種目を付け替える */
+export async function changeBlockExercise(date: string, block: BlockKey, toExerciseId: string) {
+  await relabelBlock(date, block, { exerciseId: toExerciseId, tagId: block.tagId })
 }
 
 // ---- MAX 記録 ----
@@ -698,9 +686,12 @@ export async function applyTemplate(date: string, templateId: string): Promise<n
   const template = await db.templates.get(templateId)
   if (!template) return 0
   for (const item of template.items) {
+    // 同じ日に同じ種目×タグが既にあれば別の回目として足す(ADR-015)
+    const round = nextRound(await listSetsByDate(date), item.exerciseId, item.tagId)
     // 重量・目標はコピーするが、実績レップはこれから積むので空欄(0)にする
     const copied = await copyPreviousSession(date, item.exerciseId, item.tagId, {
       clearReps: true,
+      round,
     })
     if (copied === 0) {
       const last = await getLastSet(item.exerciseId, item.tagId)
@@ -715,6 +706,7 @@ export async function applyTemplate(date: string, templateId: string): Promise<n
         rpe: last?.rpe,
         attributes: last?.attributes,
         unit: last?.unit,
+        round,
       })
     }
   }

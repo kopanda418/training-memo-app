@@ -1,18 +1,19 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { CommitInput } from '../../components/CommitInput'
 import { getBlockNote, setBlockNote } from '../../db/repository'
+import type { BlockKey } from '../../lib/groupSets'
 
 interface BlockNoteRowProps {
   date: string
-  exerciseId: string
-  tagId: string
+  block: BlockKey
 }
 
-/** その日のこの種目(×タグ)全体の感想メモ。ラック状況・種目変更の理由・調子など */
-export function BlockNoteRow({ date, exerciseId, tagId }: BlockNoteRowProps) {
+/** その日のこのブロック(種目×タグ×回目)の感想メモ。ラック状況・種目変更の理由・調子など */
+export function BlockNoteRow({ date, block }: BlockNoteRowProps) {
+  const { exerciseId, tagId, round } = block
   const blockNote = useLiveQuery(
-    () => getBlockNote(date, exerciseId, tagId),
-    [date, exerciseId, tagId],
+    () => getBlockNote(date, { exerciseId, tagId, round }),
+    [date, exerciseId, tagId, round],
   )
 
   return (
@@ -33,7 +34,7 @@ export function BlockNoteRow({ date, exerciseId, tagId }: BlockNoteRowProps) {
         className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-transparent px-2 py-1 text-xs leading-snug text-slate-700 placeholder:text-slate-400 focus:border-sky-400 focus:outline-none dark:border-slate-700 dark:text-slate-200"
         value={blockNote?.note ?? ''}
         placeholder="種目メモ(この日のこの種目の感想)"
-        onCommit={(t) => void setBlockNote(date, exerciseId, tagId, t)}
+        onCommit={(t) => void setBlockNote(date, { exerciseId, tagId, round }, t)}
       />
     </>
   )

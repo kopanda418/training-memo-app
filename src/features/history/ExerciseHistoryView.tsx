@@ -41,10 +41,16 @@ export function ExerciseHistoryView() {
     () => (exerciseId ? listBlockNotesByExercise(exerciseId) : Promise.resolve([])),
     [exerciseId],
   )
-  const blockNoteMap = useMemo(
-    () => new Map((blockNotes ?? []).map((n) => [`${n.date}|${n.tagId}`, n.note])),
-    [blockNotes],
-  )
+  const blockNoteMap = useMemo(() => {
+    // 同じ日×タグに複数の回目(ADR-015)があれば回目順に改行で連結する
+    const map = new Map<string, string | undefined>()
+    for (const n of [...(blockNotes ?? [])].sort((a, b) => a.round - b.round)) {
+      const k = `${n.date}|${n.tagId}`
+      const prev = map.get(k)
+      map.set(k, prev && n.note ? `${prev}\n${n.note}` : (prev ?? n.note))
+    }
+    return map
+  }, [blockNotes])
 
   const groups = useMemo(() => {
     const filtered = (sets ?? []).filter((s) => tagFilter === 'all' || s.tagId === tagFilter)

@@ -45,6 +45,9 @@ import {
 import { getSetting, setSetting } from './settings'
 import { NO_TAG } from './types'
 
+/** テスト用のブロックキー(種目×タグ×回目) */
+const B = (exerciseId: string, tagId: string = NO_TAG, round = 0) => ({ exerciseId, tagId, round })
+
 beforeEach(async () => {
   // テストごとに DB を作り直す(populate も再実行される)
   await db.delete()
@@ -250,8 +253,7 @@ describe('transferSets(日付間コピー/移動)', () => {
       fromDate: '2026-07-01',
       toDate: '2026-07-02',
       mode: 'move',
-      exerciseId: ex.id,
-      tagId: heavy.id,
+      block: B(ex.id, heavy.id),
     })
     expect(n).toBe(1)
     const remaining = await listSetsByDate('2026-07-01')
@@ -280,14 +282,14 @@ describe('moveBlockInDay(種目ブロックの並べ替え)', () => {
     await addSet({ date: '2026-07-03', exerciseId: ex2.id, weight: 50, reps: 10 })
     await addSet({ date: '2026-07-03', exerciseId: ex3.id, weight: 30, reps: 15 })
 
-    await moveBlockInDay('2026-07-03', ex2.id, '', 'up')
+    await moveBlockInDay('2026-07-03', B(ex2.id), 'up')
     let sets = await listSetsByDate('2026-07-03')
     expect(sets.map((s) => s.exerciseId)).toEqual([ex2.id, ex1.id, ex1.id, ex3.id])
     expect(sets.map((s) => s.orderInDay)).toEqual([0, 1, 2, 3])
 
     // 端では何も起きない
-    await moveBlockInDay('2026-07-03', ex2.id, '', 'up')
-    await moveBlockInDay('2026-07-03', ex3.id, '', 'down')
+    await moveBlockInDay('2026-07-03', B(ex2.id), 'up')
+    await moveBlockInDay('2026-07-03', B(ex3.id), 'down')
     sets = await listSetsByDate('2026-07-03')
     expect(sets.map((s) => s.exerciseId)).toEqual([ex2.id, ex1.id, ex1.id, ex3.id])
   })
@@ -301,12 +303,12 @@ describe('moveBlockInDay top/bottom・reorderBlocksInDay(一気に並べ替え)'
     await addSet({ date: '2026-07-03', exerciseId: ex3.id, weight: 30, reps: 15 })
     await addSet({ date: '2026-07-03', exerciseId: ex3.id, weight: 30, reps: 12 })
 
-    await moveBlockInDay('2026-07-03', ex3.id, '', 'top')
+    await moveBlockInDay('2026-07-03', B(ex3.id), 'top')
     let sets = await listSetsByDate('2026-07-03')
     expect(sets.map((s) => s.exerciseId)).toEqual([ex3.id, ex3.id, ex1.id, ex2.id])
     expect(sets.map((s) => s.orderInDay)).toEqual([0, 1, 2, 3])
 
-    await moveBlockInDay('2026-07-03', ex3.id, '', 'bottom')
+    await moveBlockInDay('2026-07-03', B(ex3.id), 'bottom')
     sets = await listSetsByDate('2026-07-03')
     expect(sets.map((s) => s.exerciseId)).toEqual([ex1.id, ex2.id, ex3.id, ex3.id])
   })
@@ -318,7 +320,7 @@ describe('moveBlockInDay top/bottom・reorderBlocksInDay(一気に並べ替え)'
     await addSet({ date: '2026-07-03', exerciseId: ex2.id, weight: 50, reps: 10 })
     await addSet({ date: '2026-07-03', exerciseId: ex3.id, weight: 30, reps: 15 })
 
-    await reorderBlocksInDay('2026-07-03', [`${ex3.id}|`, `${ex1.id}|`, `${ex2.id}|`])
+    await reorderBlocksInDay('2026-07-03', [`${ex3.id}||0`, `${ex1.id}||0`, `${ex2.id}||0`])
     const sets = await listSetsByDate('2026-07-03')
     expect(sets.map((s) => s.exerciseId)).toEqual([ex3.id, ex1.id, ex1.id, ex2.id])
     expect(sets.filter((s) => s.exerciseId === ex1.id).map((s) => s.id)).toEqual([a1.id, a2.id])
@@ -333,10 +335,10 @@ describe('deleteBlockInDay(種目ごと削除)', () => {
     await addSet({ date: '2026-07-03', exerciseId: ex2.id, weight: 50, reps: 8 })
     await addSet({ date: '2026-07-03', exerciseId: ex1.id, weight: 90, reps: 5, tagId: 'tagX' })
     await addSet({ date: '2026-07-04', exerciseId: ex2.id, weight: 55, reps: 10 })
-    await setBlockNote('2026-07-03', ex2.id, NO_TAG, '肩に違和感')
+    await setBlockNote('2026-07-03', B(ex2.id, NO_TAG), '肩に違和感')
     await setDayNote('2026-07-03', '日のメモ')
 
-    expect(await deleteBlockInDay('2026-07-03', ex2.id, NO_TAG)).toBe(2)
+    expect(await deleteBlockInDay('2026-07-03', B(ex2.id, NO_TAG))).toBe(2)
 
     const sets = await listSetsByDate('2026-07-03')
     expect(sets.map((s) => [s.exerciseId, s.tagId])).toEqual([
@@ -344,7 +346,7 @@ describe('deleteBlockInDay(種目ごと削除)', () => {
       [ex1.id, 'tagX'],
     ])
     expect(sets.map((s) => s.orderInDay)).toEqual([0, 1])
-    expect(await getBlockNote('2026-07-03', ex2.id, NO_TAG)).toBeUndefined()
+    expect(await getBlockNote('2026-07-03', B(ex2.id, NO_TAG))).toBeUndefined()
     expect((await getDay('2026-07-03'))?.note).toBe('日のメモ')
     expect(await listSetsByDate('2026-07-04')).toHaveLength(1)
   })
@@ -382,7 +384,7 @@ describe('changeBlockTag(ブロックのタグ変更)', () => {
     await addSet({ date: '2026-07-04', exerciseId: ex.id, tagId: heavy.id, weight: 100, reps: 3 })
     await addSet({ date: '2026-07-03', exerciseId: ex.id, tagId: heavy.id, weight: 95, reps: 5 }) // 別日は不変
 
-    await changeBlockTag('2026-07-04', ex.id, heavy.id, mid.id)
+    await changeBlockTag('2026-07-04', B(ex.id, heavy.id), mid.id)
     const today = await listSetsByDate('2026-07-04')
     expect(today.map((s) => s.tagId)).toEqual([mid.id, mid.id])
     expect((await listSetsByDate('2026-07-03'))[0].tagId).toBe(heavy.id)
@@ -397,28 +399,30 @@ describe('changeBlockExercise(ブロックの種目変更)', () => {
     await addSet({ date: '2026-07-04', exerciseId: ex3.id, weight: 30, reps: 15 }) // 別ブロック
     await addSet({ date: '2026-07-03', exerciseId: ex1.id, weight: 95, reps: 5 }) // 別日
 
-    await changeBlockExercise('2026-07-04', ex1.id, NO_TAG, ex2.id)
+    await changeBlockExercise('2026-07-04', B(ex1.id, NO_TAG), ex2.id)
     const day = await listSetsByDate('2026-07-04')
     expect(day.filter((s) => s.exerciseId === ex2.id).map((s) => s.reps)).toEqual([5, 3])
     expect(day.some((s) => s.exerciseId === ex1.id)).toBe(false)
     expect((await listSetsByDate('2026-07-03'))[0].exerciseId).toBe(ex1.id) // 別日は不変
   })
 
-  it('変更先の種目ブロックが既にあれば、その末尾に統合される', async () => {
+  it('変更先の種目ブロックが既にあっても合流せず、位置そのままで別の回目になる(ADR-015)', async () => {
     const [ex1, ex2] = await db.exercises.toArray()
     await addSet({ date: '2026-07-04', exerciseId: ex1.id, weight: 100, reps: 5 })
     await addSet({ date: '2026-07-04', exerciseId: ex2.id, weight: 60, reps: 10 })
 
-    await changeBlockExercise('2026-07-04', ex1.id, NO_TAG, ex2.id)
+    await changeBlockExercise('2026-07-04', B(ex1.id, NO_TAG), ex2.id)
     const sets = await listSetsByDate('2026-07-04')
-    expect(sets.map((s) => s.exerciseId)).toEqual([ex2.id, ex2.id])
-    expect(sets.map((s) => s.reps)).toEqual([10, 5]) // 既存が先、統合分が後ろ
+    expect(sets.map((s) => [s.exerciseId, s.reps, s.round ?? 0])).toEqual([
+      [ex2.id, 5, 1],
+      [ex2.id, 10, 0],
+    ])
   })
 
   it('同じ種目への変更は何もしない', async () => {
     const ex = (await db.exercises.toArray())[0]
     await addSet({ date: '2026-07-04', exerciseId: ex.id, weight: 100, reps: 5 })
-    await changeBlockExercise('2026-07-04', ex.id, NO_TAG, ex.id)
+    await changeBlockExercise('2026-07-04', B(ex.id, NO_TAG), ex.id)
     expect((await listSetsByDate('2026-07-04'))[0].exerciseId).toBe(ex.id)
   })
 })
@@ -474,7 +478,7 @@ describe('reorderSetsInBlock(セットの並び替え)', () => {
     await addSet({ date: '2026-07-04', exerciseId: ex2.id, weight: 50, reps: 10 })
 
     // ウォームアップ(a)をメイン(b)の後ろから先頭へ…ではなく b,c の順を保ったまま a を 2 番目へ
-    await reorderSetsInBlock('2026-07-04', ex1.id, '', [b.id, a.id, c.id])
+    await reorderSetsInBlock('2026-07-04', B(ex1.id), [b.id, a.id, c.id])
     const sets = await listSetsByDate('2026-07-04')
     expect(sets.map((s) => s.weight)).toEqual([100, 40, 105, 50])
     expect(sets.map((s) => s.orderInDay)).toEqual([0, 1, 2, 3])
@@ -631,32 +635,32 @@ describe('setDayNote(その日全体の感想メモ)', () => {
 describe('setBlockNote / getBlockNote(種目ごとの感想メモ)', () => {
   it('ブロックメモの設定・更新・空文字で行削除ができる', async () => {
     const ex = (await db.exercises.toArray())[0]
-    await setBlockNote('2026-07-03', ex.id, NO_TAG, ' ラックが空かず別種目へ ')
-    expect((await getBlockNote('2026-07-03', ex.id))?.note).toBe('ラックが空かず別種目へ')
+    await setBlockNote('2026-07-03', B(ex.id, NO_TAG), ' ラックが空かず別種目へ ')
+    expect((await getBlockNote('2026-07-03', B(ex.id)))?.note).toBe('ラックが空かず別種目へ')
 
-    await setBlockNote('2026-07-03', ex.id, NO_TAG, '調子まずまず')
-    expect((await getBlockNote('2026-07-03', ex.id))?.note).toBe('調子まずまず')
+    await setBlockNote('2026-07-03', B(ex.id, NO_TAG), '調子まずまず')
+    expect((await getBlockNote('2026-07-03', B(ex.id)))?.note).toBe('調子まずまず')
 
-    await setBlockNote('2026-07-03', ex.id, NO_TAG, '')
-    expect(await getBlockNote('2026-07-03', ex.id)).toBeUndefined()
+    await setBlockNote('2026-07-03', B(ex.id, NO_TAG), '')
+    expect(await getBlockNote('2026-07-03', B(ex.id))).toBeUndefined()
   })
 
   it('同じ種目でもタグが違えば別のメモになる', async () => {
     const ex = (await db.exercises.toArray())[0]
     const [heavy] = await db.tags.toArray()
-    await setBlockNote('2026-07-03', ex.id, heavy.id, '高重量メモ')
-    await setBlockNote('2026-07-03', ex.id, NO_TAG, 'タグなしメモ')
-    expect((await getBlockNote('2026-07-03', ex.id, heavy.id))?.note).toBe('高重量メモ')
-    expect((await getBlockNote('2026-07-03', ex.id))?.note).toBe('タグなしメモ')
+    await setBlockNote('2026-07-03', B(ex.id, heavy.id), '高重量メモ')
+    await setBlockNote('2026-07-03', B(ex.id, NO_TAG), 'タグなしメモ')
+    expect((await getBlockNote('2026-07-03', B(ex.id, heavy.id)))?.note).toBe('高重量メモ')
+    expect((await getBlockNote('2026-07-03', B(ex.id)))?.note).toBe('タグなしメモ')
     expect(await listBlockNotesByDate('2026-07-03')).toHaveLength(2)
   })
 
   it('listBlockNotesByExercise はその種目の全日付・全タグのメモを返す', async () => {
     const [ex1, ex2] = await db.exercises.toArray()
     const [heavy] = await db.tags.toArray()
-    await setBlockNote('2026-07-01', ex1.id, NO_TAG, 'ex1-0701')
-    await setBlockNote('2026-07-03', ex1.id, heavy.id, 'ex1-0703-heavy')
-    await setBlockNote('2026-07-03', ex2.id, NO_TAG, 'ex2-0703') // 別種目は含まない
+    await setBlockNote('2026-07-01', B(ex1.id, NO_TAG), 'ex1-0701')
+    await setBlockNote('2026-07-03', B(ex1.id, heavy.id), 'ex1-0703-heavy')
+    await setBlockNote('2026-07-03', B(ex2.id, NO_TAG), 'ex2-0703') // 別種目は含まない
 
     const notes = await listBlockNotesByExercise(ex1.id)
     expect(notes.map((n) => n.note).sort()).toEqual(['ex1-0701', 'ex1-0703-heavy'])
@@ -668,64 +672,64 @@ describe('ブロックメモのキー追従', () => {
     const ex = (await db.exercises.toArray())[0]
     const [heavy, mid] = await db.tags.orderBy('sortOrder').toArray()
     await addSet({ date: '2026-07-04', exerciseId: ex.id, tagId: heavy.id, weight: 100, reps: 5 })
-    await setBlockNote('2026-07-04', ex.id, heavy.id, '高重量の日メモ')
+    await setBlockNote('2026-07-04', B(ex.id, heavy.id), '高重量の日メモ')
 
-    await changeBlockTag('2026-07-04', ex.id, heavy.id, mid.id)
-    expect(await getBlockNote('2026-07-04', ex.id, heavy.id)).toBeUndefined()
-    expect((await getBlockNote('2026-07-04', ex.id, mid.id))?.note).toBe('高重量の日メモ')
+    await changeBlockTag('2026-07-04', B(ex.id, heavy.id), mid.id)
+    expect(await getBlockNote('2026-07-04', B(ex.id, heavy.id))).toBeUndefined()
+    expect((await getBlockNote('2026-07-04', B(ex.id, mid.id)))?.note).toBe('高重量の日メモ')
   })
 
-  it('changeBlockExercise でメモが種目変更に追従し、変更先に既存メモがあれば合流する', async () => {
+  it('changeBlockExercise でメモが種目変更に追従し、変更先に既存ブロックがあれば別の回目のメモになる', async () => {
     const [ex1, ex2] = await db.exercises.toArray()
     await addSet({ date: '2026-07-04', exerciseId: ex1.id, weight: 100, reps: 5 })
     await addSet({ date: '2026-07-04', exerciseId: ex2.id, weight: 60, reps: 10 })
-    await setBlockNote('2026-07-04', ex1.id, NO_TAG, '変更元メモ')
-    await setBlockNote('2026-07-04', ex2.id, NO_TAG, '変更先メモ')
+    await setBlockNote('2026-07-04', B(ex1.id, NO_TAG), '変更元メモ')
+    await setBlockNote('2026-07-04', B(ex2.id, NO_TAG), '変更先メモ')
 
-    await changeBlockExercise('2026-07-04', ex1.id, NO_TAG, ex2.id)
-    expect(await getBlockNote('2026-07-04', ex1.id)).toBeUndefined()
-    expect((await getBlockNote('2026-07-04', ex2.id))?.note).toBe('変更先メモ\n変更元メモ')
+    await changeBlockExercise('2026-07-04', B(ex1.id, NO_TAG), ex2.id)
+    expect(await getBlockNote('2026-07-04', B(ex1.id))).toBeUndefined()
+    expect((await getBlockNote('2026-07-04', B(ex2.id)))?.note).toBe('変更先メモ')
+    expect((await getBlockNote('2026-07-04', B(ex2.id, NO_TAG, 1)))?.note).toBe('変更元メモ')
   })
 
   it('transferSets(移動)でブロックメモが移動先へ付け替わる', async () => {
     const ex = (await db.exercises.toArray())[0]
     await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 100, reps: 5 })
-    await setBlockNote('2026-07-01', ex.id, NO_TAG, '移動するメモ')
+    await setBlockNote('2026-07-01', B(ex.id, NO_TAG), '移動するメモ')
 
     await transferSets({
       fromDate: '2026-07-01',
       toDate: '2026-07-02',
       mode: 'move',
-      exerciseId: ex.id,
-      tagId: NO_TAG,
+      block: B(ex.id, NO_TAG),
     })
-    expect(await getBlockNote('2026-07-01', ex.id)).toBeUndefined()
-    expect((await getBlockNote('2026-07-02', ex.id))?.note).toBe('移動するメモ')
+    expect(await getBlockNote('2026-07-01', B(ex.id))).toBeUndefined()
+    expect((await getBlockNote('2026-07-02', B(ex.id)))?.note).toBe('移動するメモ')
   })
 
   it('transferSets(日全体コピー)でブロックメモが複製され、元も残る', async () => {
     const [ex1, ex2] = await db.exercises.toArray()
     await addSet({ date: '2026-07-01', exerciseId: ex1.id, weight: 100, reps: 5 })
     await addSet({ date: '2026-07-01', exerciseId: ex2.id, weight: 60, reps: 10 })
-    await setBlockNote('2026-07-01', ex1.id, NO_TAG, 'メモ1')
-    await setBlockNote('2026-07-01', ex2.id, NO_TAG, 'メモ2')
+    await setBlockNote('2026-07-01', B(ex1.id, NO_TAG), 'メモ1')
+    await setBlockNote('2026-07-01', B(ex2.id, NO_TAG), 'メモ2')
 
     await transferSets({ fromDate: '2026-07-01', toDate: '2026-07-05', mode: 'copy' })
-    expect((await getBlockNote('2026-07-01', ex1.id))?.note).toBe('メモ1')
-    expect((await getBlockNote('2026-07-05', ex1.id))?.note).toBe('メモ1')
-    expect((await getBlockNote('2026-07-05', ex2.id))?.note).toBe('メモ2')
+    expect((await getBlockNote('2026-07-01', B(ex1.id)))?.note).toBe('メモ1')
+    expect((await getBlockNote('2026-07-05', B(ex1.id)))?.note).toBe('メモ1')
+    expect((await getBlockNote('2026-07-05', B(ex2.id)))?.note).toBe('メモ2')
   })
 
   it('deleteSet でブロックが空になると孤児メモが消える(セットが残れば消えない)', async () => {
     const ex = (await db.exercises.toArray())[0]
     const s1 = await addSet({ date: '2026-07-03', exerciseId: ex.id, weight: 100, reps: 5 })
     const s2 = await addSet({ date: '2026-07-03', exerciseId: ex.id, weight: 100, reps: 3 })
-    await setBlockNote('2026-07-03', ex.id, NO_TAG, '消えないはず')
+    await setBlockNote('2026-07-03', B(ex.id, NO_TAG), '消えないはず')
 
     await deleteSet(s1.id) // まだ s2 が残る
-    expect((await getBlockNote('2026-07-03', ex.id))?.note).toBe('消えないはず')
+    expect((await getBlockNote('2026-07-03', B(ex.id)))?.note).toBe('消えないはず')
 
     await deleteSet(s2.id) // ブロックが空になる
-    expect(await getBlockNote('2026-07-03', ex.id)).toBeUndefined()
+    expect(await getBlockNote('2026-07-03', B(ex.id))).toBeUndefined()
   })
 })

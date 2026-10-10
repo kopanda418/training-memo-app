@@ -12,7 +12,7 @@ import {
 } from '../../db/repository'
 import { addMonths, monthGrid } from '../../lib/calendar'
 import { formatDateLabel, todayString } from '../../lib/date'
-import { groupSetsIntoBlocks } from '../../lib/groupSets'
+import { blockKeyString, groupSetsIntoBlocks, roundLabels } from '../../lib/groupSets'
 import { formatSetWeight } from '../../lib/setFormat'
 
 const WEEKDAY_HEADER = ['日', '月', '火', '水', '木', '金', '土']
@@ -46,6 +46,7 @@ export function CalendarView() {
   )
   const { exerciseName, tagName } = useMasters()
   const selectedBlocks = useMemo(() => groupSetsIntoBlocks(selectedSets ?? []), [selectedSets])
+  const selectedRoundLabels = useMemo(() => roundLabels(selectedBlocks), [selectedBlocks])
 
   // 感想メモ(日全体・種目ごと)
   const selectedDay = useLiveQuery(
@@ -57,7 +58,7 @@ export function CalendarView() {
     [selected],
   )
   const blockNoteMap = useMemo(
-    () => new Map((selectedBlockNotes ?? []).map((n) => [`${n.exerciseId}|${n.tagId}`, n.note])),
+    () => new Map((selectedBlockNotes ?? []).map((n) => [blockKeyString(n), n.note])),
     [selectedBlockNotes],
   )
 
@@ -159,11 +160,15 @@ export function CalendarView() {
             <p className="py-2 text-center text-xs text-slate-400">この日の記録はありません</p>
           ) : (
             <ul className="flex flex-col gap-1">
-              {selectedBlocks.map((block) => {
-                const note = blockNoteMap.get(`${block.exerciseId}|${block.tagId}`)
+              {selectedBlocks.map((block, i) => {
+                const note = blockNoteMap.get(blockKeyString(block))
+                const round = selectedRoundLabels[i]
                 return (
-                  <li key={`${block.exerciseId}|${block.tagId}`} className="text-xs">
-                    <span className="font-bold">{exerciseName(block.exerciseId)}</span>
+                  <li key={blockKeyString(block)} className="text-xs">
+                    <span className="font-bold">
+                      {exerciseName(block.exerciseId)}
+                      {round && `(${round})`}
+                    </span>
                     {tagName(block.tagId) && (
                       <span className="ml-1 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-900 dark:text-sky-300">
                         {tagName(block.tagId)}

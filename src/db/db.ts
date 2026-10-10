@@ -29,7 +29,8 @@ export class TrainingMemoDB extends Dexie {
   setAttributes!: Table<SetAttribute, string>
   bodyParts!: Table<BodyPartRow, string>
   templates!: Table<Template, string>
-  blockNotes!: Table<BlockNote, [string, string, string]>
+  /** 実テーブルは v9 以降 `blockNotesV2`(主キーに round を含む。ADR-015)。constructor で割り当てる */
+  blockNotes!: Table<BlockNote, [string, string, string, number]>
   conditions!: Table<DailyCondition, string>
   painRecords!: Table<PainRecord, string>
 
@@ -105,6 +106,16 @@ export class TrainingMemoDB extends Dexie {
       conditions: 'date',
       painRecords: 'id, date, area, [area+side]',
     })
+    // v9: ブロックメモの主キーに回目(round)を追加(ADR-015)。Dexie は主キーを変更できないため
+    // 新テーブルへ round: 0 で移し、v10 で旧テーブルを削除する
+    this.version(9)
+      .stores({ blockNotesV2: '[date+exerciseId+tagId+round], date' })
+      .upgrade(async (tx) => {
+        const old = await tx.table('blockNotes').toArray()
+        await tx.table('blockNotesV2').bulkPut(old.map((n) => ({ ...n, round: 0 })))
+      })
+    this.version(10).stores({ blockNotes: null })
+    this.blockNotes = this.table('blockNotesV2')
     // 初回作成時のみデフォルトマスタを投入
     this.on('populate', () => {
       void this.exercises.bulkAdd(buildDefaultExercises())

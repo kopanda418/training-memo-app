@@ -22,6 +22,7 @@ import {
   reorderSetsInBlock,
 } from '../../db/repository'
 import { NO_TAG, type WorkoutSet } from '../../db/types'
+import type { BlockKey } from '../../lib/groupSets'
 import { TagSelectModal } from '../settings/TagSelectModal'
 import { BlockNoteRow } from './BlockNoteRow'
 import { BlockReorderModal } from './BlockReorderModal'
@@ -33,6 +34,10 @@ interface ExerciseBlockProps {
   date: string
   exerciseId: string
   tagId: string
+  /** 回目(ADR-015。0 = その日の 1 つ目) */
+  round: number
+  /** 同じ種目×タグが複数あるときの表示ラベル(「2回目」など) */
+  roundLabel?: string
   exerciseName: string
   tagName?: string
   sets: WorkoutSet[]
@@ -47,6 +52,8 @@ export function ExerciseBlock({
   date,
   exerciseId,
   tagId,
+  round,
+  roundLabel,
   exerciseName,
   tagName,
   sets,
@@ -61,6 +68,8 @@ export function ExerciseBlock({
   const [menuOpen, setMenuOpen] = useState(false)
   const [reorderOpen, setReorderOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const block: BlockKey = { exerciseId, tagId, round }
+  const title = `${exerciseName}${roundLabel ? `(${roundLabel})` : ''}`
 
   const closeMenu = () => {
     setMenuOpen(false)
@@ -78,7 +87,7 @@ export function ExerciseBlock({
     const from = ids.indexOf(String(active.id))
     const to = ids.indexOf(String(over.id))
     if (from < 0 || to < 0) return
-    void reorderSetsInBlock(date, exerciseId, tagId, arrayMove(ids, from, to))
+    void reorderSetsInBlock(date, block, arrayMove(ids, from, to))
   }
 
   const showMessage = (text: string) => {
@@ -99,11 +108,12 @@ export function ExerciseBlock({
       rpe: last?.rpe,
       attributes: last?.attributes,
       unit: last?.unit,
+      round,
     })
   }
 
   const handleCopyPrevious = async () => {
-    const copied = await copyPreviousSession(date, exerciseId, tagId)
+    const copied = await copyPreviousSession(date, exerciseId, tagId, { round })
     if (copied === 0) showMessage('前回の記録がありません')
   }
 
@@ -118,6 +128,11 @@ export function ExerciseBlock({
           onClick={() => setExercisePickerOpen(true)}
         >
           {exerciseName}
+          {roundLabel && (
+            <span className="ml-1.5 rounded bg-amber-100 px-1 py-px align-middle text-[10px] font-bold text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
+              {roundLabel}
+            </span>
+          )}
         </button>
         {/* タグは後から変更できる(タップでタグ選択。日内のこのブロック全セットに適用) */}
         <button
@@ -159,7 +174,7 @@ export function ExerciseBlock({
         )}
       </header>
       {message && <p className="py-1 text-xs text-amber-600 dark:text-amber-400">{message}</p>}
-      <BlockNoteRow date={date} exerciseId={exerciseId} tagId={tagId} />
+      <BlockNoteRow date={date} block={block} />
       <PreviousRecordPanel date={date} exerciseId={exerciseId} tagId={tagId} />
       <DndContext
         sensors={sensors}
@@ -183,11 +198,11 @@ export function ExerciseBlock({
         ＋ セット追加
       </button>
       {menuOpen && (
-        <Modal open onClose={closeMenu} title={exerciseName}>
+        <Modal open onClose={closeMenu} title={title}>
           {confirmDelete ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm">
-                この日の「{exerciseName}
+                この日の「{title}
                 {tagName ? ` / ${tagName}` : ''}」の記録 {sets.length}{' '}
                 セットと感想メモを削除します。元に戻せません。
               </p>
@@ -204,7 +219,7 @@ export function ExerciseBlock({
                   className="flex-1 rounded-lg bg-red-600 py-2.5 text-sm font-bold text-white active:bg-red-700"
                   onClick={() => {
                     closeMenu()
-                    void deleteBlockInDay(date, exerciseId, tagId)
+                    void deleteBlockInDay(date, block)
                   }}
                 >
                   削除する
@@ -229,7 +244,7 @@ export function ExerciseBlock({
                     className="rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-30 dark:border-slate-700"
                     disabled={disabled}
                     onClick={() => {
-                      void moveBlockInDay(date, exerciseId, tagId, direction)
+                      void moveBlockInDay(date, block, direction)
                       closeMenu()
                     }}
                   >
@@ -276,7 +291,7 @@ export function ExerciseBlock({
           allowClear={tagId !== NO_TAG}
           clearLabel="タグなしにする"
           onClose={() => setTagModalOpen(false)}
-          onSelect={(newTagId) => void changeBlockTag(date, exerciseId, tagId, newTagId ?? NO_TAG)}
+          onSelect={(newTagId) => void changeBlockTag(date, block, newTagId ?? NO_TAG)}
         />
       )}
       {exercisePickerOpen && (
@@ -284,19 +299,16 @@ export function ExerciseBlock({
           open
           withTagStep={false}
           onClose={() => setExercisePickerOpen(false)}
-          onDone={(newExerciseId) =>
-            void changeBlockExercise(date, exerciseId, tagId, newExerciseId)
-          }
+          onDone={(newExerciseId) => void changeBlockExercise(date, block, newExerciseId)}
         />
       )}
       {transferOpen && (
         <TransferModal
           open
           onClose={() => setTransferOpen(false)}
-          title={`「${exerciseName}${tagName ? ` / ${tagName}` : ''}」を別の日へ`}
+          title={`「${title}${tagName ? ` / ${tagName}` : ''}」を別の日へ`}
           fromDate={date}
-          exerciseId={exerciseId}
-          tagId={tagId}
+          block={block}
         />
       )}
     </section>

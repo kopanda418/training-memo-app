@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { transferSets } from '../db/repository'
 import { todayString } from '../lib/date'
+import type { BlockKey } from '../lib/groupSets'
 import { Modal } from './Modal'
 
 interface TransferModalProps {
@@ -9,20 +10,12 @@ interface TransferModalProps {
   onClose: () => void
   title: string
   fromDate: string
-  /** 指定すると種目×タグ単位、未指定なら日全体 */
-  exerciseId?: string
-  tagId?: string
+  /** 指定するとそのブロック(種目×タグ×回目)単位、未指定なら日全体 */
+  block?: BlockKey
 }
 
 /** 記録を別の日へコピー/移動するモーダル(対象日を選んで実行) */
-export function TransferModal({
-  open,
-  onClose,
-  title,
-  fromDate,
-  exerciseId,
-  tagId,
-}: TransferModalProps) {
+export function TransferModal({ open, onClose, title, fromDate, block }: TransferModalProps) {
   const navigate = useNavigate()
   const [target, setTarget] = useState(todayString())
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +25,7 @@ export function TransferModal({
       setError('コピー/移動元と同じ日です。別の日を選んでください')
       return
     }
-    const n = await transferSets({ fromDate, toDate: target, mode, exerciseId, tagId })
+    const n = await transferSets({ fromDate, toDate: target, mode, block })
     if (n === 0) {
       setError('対象の記録がありません')
       return

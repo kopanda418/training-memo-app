@@ -19,7 +19,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Modal } from '../../components/Modal'
 import { useMasters } from '../../db/hooks'
 import { listSetsByDate, reorderBlocksInDay } from '../../db/repository'
-import { groupSetsIntoBlocks } from '../../lib/groupSets'
+import { blockKeyString, groupSetsIntoBlocks, roundLabels } from '../../lib/groupSets'
 
 interface BlockReorderModalProps {
   date: string
@@ -64,7 +64,7 @@ export function BlockReorderModal({ date, onClose }: BlockReorderModalProps) {
   const sets = useLiveQuery(() => listSetsByDate(date), [date])
   const { exerciseName, tagName } = useMasters()
   const blocks = groupSetsIntoBlocks(sets ?? [])
-  const liveKeys = blocks.map((b) => `${b.exerciseId}|${b.tagId}`)
+  const liveKeys = blocks.map(blockKeyString)
   // DB 反映を待たずに並びを確定表示する(ドロップ直後に元の位置へ戻って見えるのを防ぐ)
   const [localKeys, setLocalKeys] = useState<string[] | null>(null)
   const keys =
@@ -73,7 +73,10 @@ export function BlockReorderModal({ date, onClose }: BlockReorderModalProps) {
     localKeys.every((k) => liveKeys.includes(k))
       ? localKeys
       : liveKeys
-  const byKey = new Map(blocks.map((b) => [`${b.exerciseId}|${b.tagId}`, b]))
+  const byKey = new Map(blocks.map((b) => [blockKeyString(b), b]))
+  // 「n回目」は並べ替え中の表示順で振る
+  const labels = roundLabels(keys.map((k) => byKey.get(k)).filter((b) => b !== undefined))
+  const labelOf = new Map(keys.filter((k) => byKey.has(k)).map((k, i) => [k, labels[i]]))
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
@@ -106,11 +109,12 @@ export function BlockReorderModal({ date, onClose }: BlockReorderModalProps) {
               const b = byKey.get(key)
               if (!b) return null
               const tag = tagName(b.tagId)
+              const round = labelOf.get(key)
               return (
                 <SortableBlockRow
                   key={key}
                   id={key}
-                  label={exerciseName(b.exerciseId)}
+                  label={`${exerciseName(b.exerciseId)}${round ? `(${round})` : ''}`}
                   sub={`${tag ? `${tag} / ` : ''}${b.sets.length} セット`}
                 />
               )

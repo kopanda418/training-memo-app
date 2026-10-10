@@ -53,6 +53,8 @@ export interface BlockNote {
   exerciseId: string
   /** タグなしは NO_TAG ('') */
   tagId: string
+  /** 回目(sets.round と対応。0 = その日の 1 つ目。ADR-015) */
+  round: number
   /** ユーザーが書く欄(実施時の感想・気づき)。プラン取り込みは決して書き換えない(ADR-013) */
   note?: string
   /** プラン取り込みが書く欄(この種目の指示: フォーム注意点・中止条件など)。UI は読み取り専用 */
@@ -130,6 +132,11 @@ export interface WorkoutSet {
   planMemo?: string
   /** 日内の表示順 */
   orderInDay: number
+  /**
+   * 回目(ADR-015)。同じ日に同じ種目×タグを他の種目を挟んで再び行ったときのブロック識別子。
+   * 省略 = 0 = その日の 1 つ目。表示の「n回目」は画面上の並び順から振る
+   */
+  round?: number
   createdAt: number
 }
 

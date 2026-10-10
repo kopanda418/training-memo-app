@@ -87,7 +87,10 @@ export async function importData(backup: unknown): Promise<void> {
     await db.settings.bulkAdd(parsed.data.settings)
     await db.setAttributes.bulkAdd(parsed.data.setAttributes ?? [])
     await db.templates.bulkAdd(parsed.data.templates ?? [])
-    await db.blockNotes.bulkAdd(parsed.data.blockNotes ?? [])
+    // v1.0.30 より前の書き出しには round が無い(= 1 つ目のブロック。ADR-015)
+    await db.blockNotes.bulkAdd(
+      (parsed.data.blockNotes ?? []).map((n) => ({ ...n, round: n.round ?? 0 })),
+    )
     await db.conditions.bulkAdd(parsed.data.conditions ?? [])
     await db.painRecords.bulkAdd(parsed.data.painRecords ?? [])
     // 旧形式(bodyParts なし)の復元: デフォルト + 種目が使っている部位名から再構築する

@@ -6,6 +6,9 @@ import { setBlockNote, updateSet } from './repository'
 import { NO_TAG } from './types'
 import type { PlanImportFile } from '../lib/planImport'
 
+/** テスト用のブロックキー(種目×タグ×回目) */
+const B = (exerciseId: string, tagId: string = NO_TAG, round = 0) => ({ exerciseId, tagId, round })
+
 beforeEach(async () => {
   await db.delete()
   await db.open()
@@ -86,7 +89,7 @@ describe('applyPlanImport', () => {
     const second = await applyPlanImport(file)
 
     expect(second.skipBlocks).toEqual([
-      { date: '2026-07-14', exerciseName: 'スクワット', tagName: undefined },
+      { date: '2026-07-14', exerciseName: 'スクワット', tagName: undefined, round: 0 },
     ])
     expect(second.addBlocks).toEqual([])
     expect(await db.exercises.where('name').equals('スクワット').count()).toBe(1)
@@ -269,7 +272,7 @@ describe('applyPlanImport', () => {
     ])
     await applyPlanImport(file)
     const exercise = await db.exercises.where('name').equals('ベンチプレス').first()
-    const note = await db.blockNotes.get(['2026-07-14', exercise!.id, NO_TAG])
+    const note = await db.blockNotes.get(['2026-07-14', exercise!.id, NO_TAG, 0])
     expect(note?.planNote).toBe('フォーム: 肩甲骨を寄せる / 中止: 挙上速度が落ちたら終了')
     expect(note?.note).toBeUndefined()
   })
@@ -298,7 +301,7 @@ describe('applyPlanImport', () => {
     const exercise = await db.exercises.where('name').equals('ベンチプレス').first()
     const before = await db.sets.where('date').equals('2026-07-14').sortBy('orderInDay')
     await updateSet(before[0].id, { memo: '肩が痛い', reps: 5 })
-    await setBlockNote('2026-07-14', exercise!.id, NO_TAG, '全体的に重かった')
+    await setBlockNote('2026-07-14', B(exercise!.id, NO_TAG), '全体的に重かった')
 
     // 同じブロックのプランを上書きで取り込み直す
     await applyPlanImport(
@@ -327,7 +330,7 @@ describe('applyPlanImport', () => {
     expect(after[0].memo).toBe('肩が痛い') // ユーザーの書き込みはセット順で引き継ぐ
     expect(after[1].memo).toBeUndefined()
 
-    const note = await db.blockNotes.get(['2026-07-14', exercise!.id, NO_TAG])
+    const note = await db.blockNotes.get(['2026-07-14', exercise!.id, NO_TAG, 0])
     expect(note?.note).toBe('全体的に重かった') // ユーザー欄はそのまま
     expect(note?.planNote).toBe('新プラン: 速度低下で終了') // プラン欄だけ差し替わる
   })

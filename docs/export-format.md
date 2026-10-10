@@ -100,6 +100,7 @@ interface WorkoutSet {
   memo?: string // セットメモ(ユーザーが書く欄。プラン取り込みは書き換えない)
   planMemo?: string // プラン取り込みが書いたそのセットの指示(読み取り専用表示。v1.0.24〜/ADR-013)
   orderInDay: number // 日内の表示順(0 始まり)
+  round?: number // 回目(v1.0.30〜/ADR-015)。省略 = 0 = その日の 1 つ目。下記参照
   createdAt: number // Unix ミリ秒
 
   // --- deprecated フィールド(旧データ互換のため型に残る) ---
@@ -115,6 +116,11 @@ interface WorkoutSet {
 - 分析・グラフ・MAX 判定はすべて `exerciseId + tagId` の組み合わせ単位で行う
 - `isWarmup: true` のセットは週間集計・MAX 判定から除外される
 - `orderInDay` は連番ではなく相対順。コピー/移動後に振り直されることがある
+- **回目(`round`、v1.0.30〜)**: 同じ日に同じ種目×タグを、他の種目を挟んで再び行った場合の区別。
+  例: ベンチプレス 2 セット → ダンベルカール 3 セット → ベンチプレス 3 セット なら、ベンチの最初の
+  2 セットは `round` なし(=0)、後の 3 セットは `round: 1`。記録画面ではブロックが分かれ「1回目・2回目」と
+  表示される。番号は識別子で、実施順は `orderInDay` で見ること(並べ替えで 2回目 が先になることもある)。
+  回目を区別せず「その日のその種目の全セット」として扱えば、従来どおりの集計になる
 
 ### locations — 場所マスタ
 
@@ -188,17 +194,19 @@ interface Template {
 }
 ```
 
-### blockNotes — 種目×タグブロックの感想メモ
+### blockNotes — 種目×タグ×回目ブロックの感想メモ
 
-その日のその種目(`date + exerciseId + tagId` の複合単位=ブロック)ごとの感想メモ。
+その日のその種目(`date + exerciseId + tagId + round` の複合単位=ブロック)ごとの感想メモ。
 ブロックは永続レコードを持たない(`sets` の集合)ため、感想メモだけを別テーブルに切り出し、
-複合主キー `[date+exerciseId+tagId]` で持つ。
+複合主キーで持つ(アプリ内部のテーブル名は v1.0.30 から `blockNotesV2` だが、書き出しファイルでは
+従来どおり `blockNotes` の名前で出す)。
 
 ```ts
 interface BlockNote {
   date: string // "YYYY-MM-DD" (days.date と一致)
   exerciseId: string // exercises.id への参照
   tagId: string // tags.id への参照。タグなしは "" (空文字, NO_TAG)
+  round: number // 回目(v1.0.30〜/ADR-015)。sets[].round と対応(0 = 1 つ目)。旧ファイルには無い(=0)
   note?: string // ブロックの感想メモ(ユーザーが書く欄)。planNote だけの行では undefined
   planNote?: string // プラン取り込みが書いた種目単位の指示(読み取り専用表示。v1.0.24〜/ADR-013)
 }
@@ -356,6 +364,8 @@ interface PainRecord {
 | `blockNotes`            | Dexie v7       | 省略可。import 時は空配列として扱う                                          |
 | `conditions`            | Dexie v8       | 省略可。import 時は空配列として扱う                                          |
 | `painRecords`           | Dexie v8       | 省略可。import 時は空配列として扱う                                          |
+| `sets[].round`          | Dexie v9       | 省略可。無ければ 0(その日の 1 つ目のブロック)                                |
+| `blockNotes[].round`    | Dexie v9       | 省略可。import 時は 0 として扱う                                             |
 
 ---
 
@@ -367,7 +377,7 @@ bodyParts ──← exercises ────────────────�
 tags ──────────────────────────────────── sets ── (主記録)
                                            │ tagId
                                            │ date ──→ days ──→ locations
-blockNotes  ([date+exerciseId+tagId] の感想メモ)
+blockNotes  ([date+exerciseId+tagId+round] の感想メモ)
 setAttributes  (属性名の候補プール)         │
 templates      (exerciseId + tagId のリスト)│
 settings       (ユーザー設定)              │
@@ -379,7 +389,7 @@ painRecords  (date × area × side の痛み) ── exerciseIds[] ──→ exe
 - `sets` が中心テーブル。1 セット 1 行
 - `exerciseId + tagId` の組み合わせが分析の基本単位
 - `days` は 1 日 1 行のメタ情報(場所・その日全体の感想メモ)
-- `blockNotes` は `date + exerciseId + tagId` 単位の感想メモ。ブロック(その日のその種目)に紐づく
+- `blockNotes` は `date + exerciseId + tagId + round` 単位の感想メモ。ブロック(その日のその種目の何回目か)に紐づく
 - `conditions` / `painRecords` は日付で `days`・`sets` と突き合わせられるが、トレーニングしていない日の記録もある
 
 ---
@@ -461,6 +471,7 @@ painRecords  (date × area × side の痛み) ── exerciseIds[] ──→ exe
         "date": "2026-07-08",
         "exerciseId": "ex-001",
         "tagId": "tag-001",
+        "round": 0,
         "note": "フォーム安定。次回は102.5kgに挑戦"
       }
     ],
