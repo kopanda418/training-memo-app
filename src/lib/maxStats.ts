@@ -1,5 +1,6 @@
 import type { WorkoutSet } from '../db/types'
 import { estimateOneRepMax } from './oneRepMax'
+import { bodyWeightAt, type BodyWeightSource } from './bodyWeight'
 import { effectiveLoad } from './setFormat'
 
 /** ベスト値と、それを最初に達成した日・そのセットの内容 */
@@ -30,7 +31,7 @@ export interface MaxRow {
  * それぞれ独立のベスト(回数ベストは重量に関係なく最大レップ)。
  * ウォームアップ・実績空欄・換算不能な自重は除外。
  */
-export function computeMaxRows(sets: WorkoutSet[], bodyWeight?: number): MaxRow[] {
+export function computeMaxRows(sets: WorkoutSet[], bodyWeight?: BodyWeightSource): MaxRow[] {
   // 日付昇順に走査し「より大きい値」のときだけ更新する = 同値なら最古の達成日が残る
   const sorted = [...sets].sort((a, b) =>
     a.date === b.date ? a.orderInDay - b.orderInDay : a.date.localeCompare(b.date),
@@ -38,7 +39,7 @@ export function computeMaxRows(sets: WorkoutSet[], bodyWeight?: number): MaxRow[
   const map = new Map<string, MaxRow>()
   for (const s of sorted) {
     if (s.isWarmup || s.reps <= 0) continue
-    const load = effectiveLoad(s, bodyWeight)
+    const load = effectiveLoad(s, bodyWeightAt(bodyWeight, s.date))
     if (load === undefined || load <= 0) continue
     const key = `${s.exerciseId}|${s.tagId}`
     let row = map.get(key)

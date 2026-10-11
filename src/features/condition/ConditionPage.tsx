@@ -10,8 +10,11 @@ import {
   setConditionScore,
   type PainInput,
 } from '../../db/condition'
+import { CommitInput } from '../../components/CommitInput'
+import { getBodyWeight, getPreviousBodyWeight, setBodyWeight } from '../../db/bodyWeight'
 import { useMasters } from '../../db/hooks'
 import type { PainRecord } from '../../db/types'
+import { parseBodyWeight } from '../../lib/bodyWeight'
 import { addDays, formatDateLabel, todayString } from '../../lib/date'
 import { painTitle } from '../../lib/painRegions'
 import { describePain } from '../../lib/painSummary'
@@ -57,6 +60,8 @@ export function ConditionPage() {
     setParams({ date: d }, { replace: true, state: location.state as unknown })
 
   const condition = useLiveQuery(() => getCondition(date), [date])
+  const weight = useLiveQuery(() => getBodyWeight(date), [date])
+  const prevWeight = useLiveQuery(() => getPreviousBodyWeight(date), [date])
   const pains = useLiveQuery(() => listPainsByDate(date), [date])
   const ongoing = useLiveQuery(() => listOngoingPains(date), [date])
   const { exerciseName } = useMasters()
@@ -161,6 +166,40 @@ export function ConditionPage() {
               />
             </div>
           ))}
+        </section>
+
+        <section>
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <h2 className="text-sm font-bold">体重</h2>
+            <button
+              type="button"
+              className="text-xs text-sky-600 dark:text-sky-400"
+              onClick={() => navigate('/analytics?view=weight')}
+            >
+              📈 体重の推移を見る ›
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <CommitInput
+              inputMode="decimal"
+              className="w-28 rounded-lg border border-slate-300 px-3 py-2 text-right text-base font-bold tabular dark:border-slate-600 dark:bg-slate-800"
+              value={weight !== undefined ? weight.toFixed(2) : ''}
+              placeholder="例: 65.25"
+              onCommit={(t) => {
+                if (t.trim() === '') void setBodyWeight(date, undefined)
+                else {
+                  const n = parseBodyWeight(t)
+                  if (n !== undefined) void setBodyWeight(date, n)
+                }
+              }}
+            />
+            <span className="text-sm text-slate-500">kg</span>
+            {prevWeight && (
+              <span className="ml-auto text-xs text-slate-400">
+                前回 {prevWeight.weight.toFixed(2)}({formatDateLabel(prevWeight.date)})
+              </span>
+            )}
+          </div>
         </section>
 
         <section className="flex flex-col gap-2">

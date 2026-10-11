@@ -62,6 +62,14 @@ export interface BlockNote {
 }
 
 /** 日ごとの体調・やる気(各 1〜10、未入力は undefined)。ADR-014 */
+/** 日ごとの体重(1 日 1 件、kg。ADR-017) */
+export interface BodyWeight {
+  /** YYYY-MM-DD(端末ローカル) */
+  date: string
+  /** kg(小数第二位まで) */
+  weight: number
+}
+
 export interface DailyCondition {
   /** YYYY-MM-DD(端末ローカル) */
   date: string

@@ -166,8 +166,8 @@ export function SettingsPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-bold">体重(自重セットの 1RM 換算用)</h2>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          自重セットの 1RM は「体重 + 加重」で換算します。未登録の場合、自重セットの 1RM
-          は表示されません
+          自重セットの 1RM は「体重 + 加重」で換算します。体調画面で記録した日ごとの体重があれば
+          そちら(その日、無ければ直近の記録)を優先し、記録が無い期間だけこの値を使います
         </p>
         <div className="mt-2 flex items-center gap-2">
           <CommitInput

@@ -13,7 +13,7 @@ import { Line } from 'react-chartjs-2'
 import { CommitInput } from '../../components/CommitInput'
 import { db } from '../../db/db'
 import { useMasters } from '../../db/hooks'
-import { useSetting } from '../../db/settings'
+import { useBodyWeightOf } from '../../db/bodyWeight'
 import { NO_TAG, type WorkoutSet } from '../../db/types'
 import { addDays, todayString } from '../../lib/date'
 import { estimateOneRepMax } from '../../lib/oneRepMax'
@@ -67,7 +67,7 @@ export default function GraphView() {
   }
 
   const { exerciseName, tags } = useMasters()
-  const bodyWeight = useSetting<number>('bodyWeight')
+  const bodyWeight = useBodyWeightOf()
 
   const sets = useLiveQuery<WorkoutSet[]>(
     () =>
@@ -89,7 +89,7 @@ export default function GraphView() {
       if (filterMode === 'include' && selectedTagIds.size > 0 && !selectedTagIds.has(s.tagId))
         continue
       if (filterMode === 'exclude' && selectedTagIds.has(s.tagId)) continue
-      const load = effectiveLoad(s, bodyWeight)
+      const load = effectiveLoad(s, bodyWeight(s.date))
       if (load === undefined) continue
       let p = byDate.get(s.date)
       if (!p) {

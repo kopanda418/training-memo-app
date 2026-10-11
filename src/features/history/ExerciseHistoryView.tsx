@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 import { db } from '../../db/db'
 import { useMasters } from '../../db/hooks'
 import { listBlockNotesByExercise } from '../../db/repository'
-import { useSetting } from '../../db/settings'
+import { useBodyWeightOf } from '../../db/bodyWeight'
 import { NO_TAG, type WorkoutSet } from '../../db/types'
 import { formatDateLabel, todayString } from '../../lib/date'
 import { estimateOneRepMax } from '../../lib/oneRepMax'
@@ -25,7 +25,7 @@ export function ExerciseHistoryView() {
   const [pickerOpen, setPickerOpen] = useState(false)
 
   const { exerciseName, tagName, tags } = useMasters()
-  const bodyWeight = useSetting<number>('bodyWeight')
+  const bodyWeight = useBodyWeightOf()
 
   const sets = useLiveQuery<WorkoutSet[]>(
     () =>
@@ -177,7 +177,7 @@ export function ExerciseHistoryView() {
                     </span>
                   )}
                   {(() => {
-                    const load = effectiveLoad(s, bodyWeight)
+                    const load = effectiveLoad(s, bodyWeight(s.date))
                     return load !== undefined && load > 0 && s.reps > 0 ? (
                       <span className="ml-auto text-[10px] text-slate-400">
                         1RM {Math.round(estimateOneRepMax(load, s.reps) * 10) / 10}kg

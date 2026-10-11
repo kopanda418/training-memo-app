@@ -8,6 +8,7 @@ import type {
   Exercise,
   Location,
   PainRecord,
+  BodyWeight,
   SetAttribute,
   Setting,
   Tag,
@@ -33,6 +34,7 @@ export class TrainingMemoDB extends Dexie {
   blockNotes!: Table<BlockNote, [string, string, string, number]>
   conditions!: Table<DailyCondition, string>
   painRecords!: Table<PainRecord, string>
+  bodyWeights!: Table<BodyWeight, string>
 
   constructor() {
     super('training-memo')
@@ -115,6 +117,8 @@ export class TrainingMemoDB extends Dexie {
         await tx.table('blockNotesV2').bulkPut(old.map((n) => ({ ...n, round: 0 })))
       })
     this.version(10).stores({ blockNotes: null })
+    // v11: 日ごとの体重(ADR-017)
+    this.version(11).stores({ bodyWeights: 'date' })
     this.blockNotes = this.table('blockNotesV2')
     // 初回作成時のみデフォルトマスタを投入
     this.on('populate', () => {

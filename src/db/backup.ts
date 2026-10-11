@@ -8,6 +8,7 @@ import type {
   Exercise,
   Location,
   PainRecord,
+  BodyWeight,
   SetAttribute,
   Setting,
   Tag,
@@ -41,6 +42,8 @@ export interface BackupFile {
     conditions?: DailyCondition[]
     /** v8 で追加(旧バックアップには無いので省略可) */
     painRecords?: PainRecord[]
+    /** v11 で追加(旧バックアップには無いので省略可) */
+    bodyWeights?: BodyWeight[]
   }
 }
 
@@ -63,6 +66,7 @@ export async function exportData(): Promise<BackupFile> {
       blockNotes: await db.blockNotes.toArray(),
       conditions: await db.conditions.toArray(),
       painRecords: await db.painRecords.toArray(),
+      bodyWeights: await db.bodyWeights.toArray(),
     },
   }))
 }
@@ -93,6 +97,7 @@ export async function importData(backup: unknown): Promise<void> {
     )
     await db.conditions.bulkAdd(parsed.data.conditions ?? [])
     await db.painRecords.bulkAdd(parsed.data.painRecords ?? [])
+    await db.bodyWeights.bulkAdd(parsed.data.bodyWeights ?? [])
     // 旧形式(bodyParts なし)の復元: デフォルト + 種目が使っている部位名から再構築する
     let bodyParts = parsed.data.bodyParts
     if (!bodyParts?.length) {

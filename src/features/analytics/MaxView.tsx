@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router'
 import { Modal } from '../../components/Modal'
 import { db } from '../../db/db'
 import { useMasters } from '../../db/hooks'
-import { useSetting } from '../../db/settings'
+import { useBodyWeightOf } from '../../db/bodyWeight'
 import { formatDateLabel, todayString } from '../../lib/date'
 import { computeMaxRows, type BestEntry, type MaxRow } from '../../lib/maxStats'
 
@@ -16,7 +16,7 @@ type SortKey = 'updatedDate' | 'lastDate' | 'oneRm'
 export function MaxView() {
   const navigate = useNavigate()
   const sets = useLiveQuery(() => db.sets.toArray(), [])
-  const bodyWeight = useSetting<number>('bodyWeight')
+  const bodyWeight = useBodyWeightOf()
   const { exerciseName, tagName } = useMasters()
   const [selected, setSelected] = useState<MaxRow | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('updatedDate')

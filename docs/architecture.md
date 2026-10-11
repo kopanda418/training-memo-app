@@ -70,6 +70,9 @@ painRecords: 'id, date, area, [area+side]' // v8 追加(ADR-014)
 // { id, date, area(例 'knee'), regionIds[](例 'knee.medial'), side('R'|'L'|'B'|'C'),
 //   intensity(NRS 0〜10), qualities[], timings[], movements[], onset?, exerciseIds[], note?,
 //   createdAt, updatedAt } … 1 日 1 部位×左右 1 件。部位・選択肢のコードは src/lib/painRegions.ts
+bodyWeights: 'date' // v11 追加(ADR-017)
+// { date, weight(kg、小数第二位まで) } … 日ごとの体重(1 日 1 件)。自重セットの換算は
+//   その日(無ければ直近過去)の体重 → 無ければ settings.bodyWeight
 settings: 'key'
 // { key, value } … bodyWeight / quickSetAttributes / quickExerciseTagIds / theme など
 //                   (キー一覧は src/db/settings.ts の SettingKey)

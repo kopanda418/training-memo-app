@@ -1,4 +1,5 @@
 import type { WorkoutSet } from '../db/types'
+import { bodyWeightAt, type BodyWeightSource } from './bodyWeight'
 import { effectiveLoad } from './setFormat'
 
 export interface WeeklyStats {
@@ -18,7 +19,7 @@ export interface WeeklyStats {
  * - 実績レップ空欄(0)は除外
  * - 自重セットは体重登録時のみ「体重+加重」でボリューム計上(未登録はセット数のみ計上し件数を注記)
  */
-export function computeWeeklyStats(sets: WorkoutSet[], bodyWeight?: number): WeeklyStats {
+export function computeWeeklyStats(sets: WorkoutSet[], bodyWeight?: BodyWeightSource): WeeklyStats {
   const stats: WeeklyStats = { sets: 0, volume: 0, excludedBodyweight: 0, byExercise: new Map() }
   for (const s of sets) {
     if (s.isWarmup || s.reps <= 0) continue
@@ -29,7 +30,7 @@ export function computeWeeklyStats(sets: WorkoutSet[], bodyWeight?: number): Wee
     }
     stats.sets++
     entry.sets++
-    const load = effectiveLoad(s, bodyWeight)
+    const load = effectiveLoad(s, bodyWeightAt(bodyWeight, s.date))
     if (load === undefined) {
       stats.excludedBodyweight++
       continue

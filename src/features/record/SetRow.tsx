@@ -5,6 +5,7 @@ import { CommitInput } from '../../components/CommitInput'
 import { SwipeToDelete } from '../../components/SwipeToDelete'
 import { showToast } from '../../components/Toast'
 import { deleteSet, detectMaxUpdate, toggleSetAttribute, updateSet } from '../../db/repository'
+import { useBodyWeightOn } from '../../db/bodyWeight'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, useSetting } from '../../db/settings'
 import type { WorkoutSet } from '../../db/types'
 import { estimateOneRepMax } from '../../lib/oneRepMax'
@@ -67,7 +68,7 @@ const numBoxClass =
   'rounded-md border border-slate-200 bg-transparent px-1 py-1.5 text-center dark:border-slate-700'
 
 export function SetRow({ set, index, prevSet }: SetRowProps) {
-  const bodyWeight = useSetting<number>('bodyWeight')
+  const bodyWeight = useBodyWeightOn(set.date)
   const quickAttrs = (
     useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
   ).filter((q) => q.trim() !== '')

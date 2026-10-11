@@ -8,6 +8,7 @@ import {
 } from '../lib/groupSets'
 import { estimateOneRepMax } from '../lib/oneRepMax'
 import { effectiveLoad } from '../lib/setFormat'
+import { loadBodyWeightOf } from './bodyWeight'
 import { db } from './db'
 import { getSetting, setSetting } from './settings'
 import {
@@ -618,8 +619,8 @@ export async function changeBlockExercise(date: string, block: BlockKey, toExerc
 export async function detectMaxUpdate(setId: string): Promise<string | null> {
   const set = await db.sets.get(setId)
   if (!set || set.isWarmup || set.reps <= 0) return null
-  const bodyWeight = await getSetting<number>('bodyWeight')
-  const load = effectiveLoad(set, bodyWeight)
+  const bodyWeightOf = await loadBodyWeightOf()
+  const load = effectiveLoad(set, bodyWeightOf(set.date))
   if (load === undefined || load <= 0) return null
 
   const history = await db.sets
@@ -632,7 +633,7 @@ export async function detectMaxUpdate(setId: string): Promise<string | null> {
   let bestLoad = 0
   let bestRm = 0
   for (const s of others) {
-    const l = effectiveLoad(s, bodyWeight)
+    const l = effectiveLoad(s, bodyWeightOf(s.date))
     if (l === undefined) continue
     bestLoad = Math.max(bestLoad, l)
     bestRm = Math.max(bestRm, estimateOneRepMax(l, s.reps))

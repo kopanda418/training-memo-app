@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMasters } from '../../db/hooks'
 import { listSetsInRange } from '../../db/repository'
-import { useSetting } from '../../db/settings'
+import { useBodyWeightOf } from '../../db/bodyWeight'
 import { NO_TAG } from '../../db/types'
 import { todayString } from '../../lib/date'
 import { addWeeks, formatWeekLabel, weekEnd, weekStart } from '../../lib/week'
@@ -36,7 +36,7 @@ export function WeeklyView() {
   const rangeStart = addWeeks(thisWeek, -(BAR_WEEKS - 1))
   const rangeEnd = weekEnd(thisWeek)
   const allSets = useLiveQuery(() => listSetsInRange(rangeStart, rangeEnd), [rangeStart, rangeEnd])
-  const bodyWeight = useSetting<number>('bodyWeight')
+  const bodyWeight = useBodyWeightOf()
   const { exerciseName, tags } = useMasters()
 
   const [tagFilter, setTagFilter] = useState<'all' | string>('all')
