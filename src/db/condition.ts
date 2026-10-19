@@ -8,21 +8,47 @@ export async function getCondition(date: string): Promise<DailyCondition | undef
   return db.conditions.get(date)
 }
 
-/** 体調/やる気のスコア(1〜10)を設定する。undefined で解除。両方未設定になれば行ごと消す */
-export async function setConditionScore(
+/**
+ * その日の体調行の項目を書き換える。undefined で解除。
+ * 体調・やる気・睡眠・生活負荷のすべてが未入力になれば行ごと消す(ADR-014/020。stressors: [] は入力あり)
+ */
+export async function updateCondition(
   date: string,
-  field: 'condition' | 'motivation',
-  value: number | undefined,
+  patch: Partial<Omit<DailyCondition, 'date'>>,
 ): Promise<void> {
   await db.transaction('rw', [db.conditions], async () => {
     const current: DailyCondition = (await db.conditions.get(date)) ?? { date }
-    const next: DailyCondition = { ...current, [field]: value }
-    if (next.condition === undefined && next.motivation === undefined) {
+    const next: DailyCondition = { ...current, ...patch }
+    if (
+      next.condition === undefined &&
+      next.motivation === undefined &&
+      next.sleepHours === undefined &&
+      next.stressors === undefined
+    ) {
       await db.conditions.delete(date)
     } else {
       await db.conditions.put(next)
     }
   })
+}
+
+/** 体調/やる気のスコア(1〜10)を設定する。undefined で解除 */
+export async function setConditionScore(
+  date: string,
+  field: 'condition' | 'motivation',
+  value: number | undefined,
+): Promise<void> {
+  await updateCondition(date, { [field]: value })
+}
+
+/** その日より前で、睡眠時間が入っている直近の記録(前回値の目印用) */
+export async function getPreviousSleep(date: string): Promise<DailyCondition | undefined> {
+  return db.conditions
+    .where('date')
+    .below(date)
+    .reverse()
+    .filter((c) => c.sleepHours !== undefined)
+    .first()
 }
 
 export async function listPainsByDate(date: string): Promise<PainRecord[]> {

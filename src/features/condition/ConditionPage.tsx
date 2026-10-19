@@ -3,11 +3,13 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import {
   getCondition,
+  getPreviousSleep,
   listOngoingPains,
   listPainsByDate,
   painKey,
   savePain,
   setConditionScore,
+  updateCondition,
   type PainInput,
 } from '../../db/condition'
 import { CommitInput } from '../../components/CommitInput'
@@ -16,6 +18,13 @@ import { useMasters } from '../../db/hooks'
 import type { PainRecord } from '../../db/types'
 import { parseBodyWeight } from '../../lib/bodyWeight'
 import { addDays, formatDateLabel, todayString } from '../../lib/date'
+import {
+  SLEEP_HOURS,
+  STRESSORS,
+  sleepLabel,
+  toggleNoStressor,
+  toggleStressor,
+} from '../../lib/lifeLoad'
 import { painTitle } from '../../lib/painRegions'
 import { describePain } from '../../lib/painSummary'
 import { BodyMap, type BodyMapSelection, type BodyView } from './BodyMap'
@@ -62,6 +71,7 @@ export function ConditionPage() {
   const condition = useLiveQuery(() => getCondition(date), [date])
   const weight = useLiveQuery(() => getBodyWeight(date), [date])
   const prevWeight = useLiveQuery(() => getPreviousBodyWeight(date), [date])
+  const prevSleep = useLiveQuery(() => getPreviousSleep(date), [date])
   const pains = useLiveQuery(() => listPainsByDate(date), [date])
   const ongoing = useLiveQuery(() => listOngoingPains(date), [date])
   const { exerciseName } = useMasters()
@@ -166,6 +176,81 @@ export function ConditionPage() {
               />
             </div>
           ))}
+        </section>
+
+        <section>
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <h2 className="text-sm font-bold">
+              睡眠
+              {condition?.sleepHours !== undefined && (
+                <span className="ml-2 text-base tabular">{sleepLabel(condition.sleepHours)}h</span>
+              )}
+            </h2>
+            <span className="text-xs text-slate-400">今朝起きるまで(昼寝は除く)・時間</span>
+          </div>
+          <div className="grid grid-cols-8 gap-1">
+            {SLEEP_HOURS.map((h) => {
+              const selected = condition?.sleepHours === h
+              const isPrev = !selected && prevSleep?.sleepHours === h
+              return (
+                <button
+                  key={h}
+                  type="button"
+                  aria-pressed={selected}
+                  className={`h-9 rounded-md text-xs font-bold tabular ${
+                    selected
+                      ? 'bg-indigo-600 text-white shadow'
+                      : 'bg-slate-100 text-slate-600 active:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:active:bg-slate-700'
+                  } ${isPrev ? 'ring-2 ring-indigo-300 dark:ring-indigo-700' : ''}`}
+                  onClick={() =>
+                    void updateCondition(date, { sleepHours: selected ? undefined : h })
+                  }
+                >
+                  {sleepLabel(h)}
+                </button>
+              )
+            })}
+          </div>
+          {prevSleep?.sleepHours !== undefined && (
+            <p className="mt-1 text-right text-xs text-slate-400">
+              枠 = 前回 {sleepLabel(prevSleep.sleepHours)}h({formatDateLabel(prevSleep.date)})
+            </p>
+          )}
+        </section>
+
+        <section>
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <h2 className="text-sm font-bold">生活負荷</h2>
+            <span className="text-xs text-slate-400">回復・トレーニングに響いた負荷</span>
+          </div>
+          <div className="flex gap-1.5">
+            {[{ id: '', label: 'なし' }, ...STRESSORS].map((c) => {
+              const stressors = condition?.stressors
+              const on = c.id === '' ? stressors?.length === 0 : !!stressors?.includes(c.id)
+              return (
+                <button
+                  key={c.id || 'none'}
+                  type="button"
+                  aria-pressed={on}
+                  className={`h-9 flex-1 rounded-full border text-sm ${
+                    on
+                      ? c.id === ''
+                        ? 'border-emerald-600 bg-emerald-600 font-bold text-white'
+                        : 'border-amber-500 bg-amber-500 font-bold text-white'
+                      : 'border-slate-300 text-slate-600 active:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:active:bg-slate-800'
+                  }`}
+                  onClick={() =>
+                    void updateCondition(date, {
+                      stressors:
+                        c.id === '' ? toggleNoStressor(stressors) : toggleStressor(stressors, c.id),
+                    })
+                  }
+                >
+                  {c.label}
+                </button>
+              )
+            })}
+          </div>
         </section>
 
         <section>

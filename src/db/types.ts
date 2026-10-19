@@ -75,6 +75,10 @@ export interface DailyCondition {
   date: string
   condition?: number
   motivation?: number
+  /** 前夜の睡眠時間(0.5 刻み、3〜10。3 = 以下、10 = 以上)。ADR-020 */
+  sleepHours?: number
+  /** 生活負荷のコード(src/lib/lifeLoad.ts)。undefined = 記録なし、[] = 負荷なし。ADR-020 */
+  stressors?: string[]
 }
 
 /**

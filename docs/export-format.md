@@ -225,18 +225,46 @@ interface BlockNote {
 `days[].note` はユーザーが書いた内容。外部プロジェクトがこのファイルを読んで実績を分析する場合、
 ユーザーの生の声は後者の 3 つに入っている
 
-### conditions — 日ごとの体調・やる気(v1.0.27〜/ADR-014)
+### conditions — 日ごとの体調・やる気・睡眠・生活負荷(v1.0.27〜/ADR-014、睡眠・生活負荷は v1.0.35〜/ADR-020)
 
-記録画面の「🩺 体調・痛み」から入力する 1 日 1 行のスコア。どちらか一方だけの日もある
-(両方を未入力に戻すと行ごと消える)。`days` とは別テーブルで、トレーニング記録が無い日にも存在しうる。
+記録画面の「🩺 体調・痛み」から入力する 1 日 1 行の記録。各項目は任意で、一部だけの日もある
+(**体調・やる気・睡眠・生活負荷のすべてを未入力に戻すと行ごと消える**)。`days` とは別テーブルで、
+トレーニング記録が無い日にも存在しうる。
 
 ```ts
 interface DailyCondition {
   date: string // "YYYY-MM-DD"
   condition?: number // 体調 1〜10(10=絶好調)
   motivation?: number // やる気 1〜10(10=最高)
+  sleepHours?: number // 睡眠時間(時間)。0.5 刻みで 3〜10。v1.0.35〜
+  stressors?: string[] // 生活負荷のコード。v1.0.35〜。下記参照
 }
 ```
+
+**睡眠時間(`sleepHours`)の読み方:**
+
+- その日の**朝起きるまでの睡眠**(= 前夜の睡眠)。昼寝は含めない。本人の申告(だいたいの値)
+- 値は `3, 3.5, 4, … 9.5, 10` のどれか。**`3` は「3 時間以下」、`10` は「10 時間以上」**を表す
+  (画面では「〜3」「10〜」)。平均を取るときは端の値がこの意味を含む点に注意
+- 前日の値を自動では入れない。項目が無い日は「記録なし」(睡眠が 0 という意味ではない)
+
+**生活負荷(`stressors`)の読み方 — 「負荷なし」と「記録なし」を区別する:**
+
+| 値                    | 意味                                                 |
+| --------------------- | ---------------------------------------------------- |
+| 項目なし(`undefined`) | **記録なし**(その日は答えていない)。行が無い日も同じ |
+| `[]`(空配列)          | **負荷なし**(画面の「なし」をタップして明示した)     |
+| `["childcare"]` など  | その負荷があった(複数可。例 `["childcare", "work"]`) |
+
+- **体調行があっても `stressors` が無ければ「負荷なし」とは読まない**(体調・睡眠だけ付けた日がありうる)
+- 意味は「その日、回復やトレーニングに響くと本人が感じた負荷があった」。厳密な基準はなく本人の主観
+- コード一覧(正本は `src/lib/lifeLoad.ts`。保存データのキーなので**変更・削除せず追加のみ**。
+  将来の追加に備え、知らないコードは「その他の負荷あり」として扱うこと)
+
+| コード      | 意味                         |
+| ----------- | ---------------------------- |
+| `childcare` | 育児(夜泣き・寝かしつけなど) |
+| `work`      | 仕事(残業・繁忙など)         |
 
 ### painRecords — 痛みの記録(v1.0.27〜/ADR-014)
 
@@ -376,19 +404,20 @@ interface BodyWeight {
 
 ## 旧バックアップとの互換性
 
-| フィールド / テーブル   | 追加バージョン | 旧データでの扱い                                                             |
-| ----------------------- | -------------- | ---------------------------------------------------------------------------- |
-| `setAttributes`         | Dexie v2       | 省略可。import 時は空配列として扱う                                          |
-| `bodyParts`             | Dexie v3       | 省略可。import 時はデフォルト 7 部位 + 種目の部位名から再構築                |
-| `templates`             | Dexie v4       | 省略可。import 時は空配列として扱う                                          |
-| `sets[].attributes[]`   | Dexie v5       | 旧 `attribute`(単数 string)は import 時に `attributes: [attribute]` へ正規化 |
-| `locations[].sortOrder` | Dexie v6       | 旧データは `lastUsedAt` 降順で自動採番                                       |
-| `blockNotes`            | Dexie v7       | 省略可。import 時は空配列として扱う                                          |
-| `conditions`            | Dexie v8       | 省略可。import 時は空配列として扱う                                          |
-| `painRecords`           | Dexie v8       | 省略可。import 時は空配列として扱う                                          |
-| `sets[].round`          | Dexie v9       | 省略可。無ければ 0(その日の 1 つ目のブロック)                                |
-| `blockNotes[].round`    | Dexie v9       | 省略可。import 時は 0 として扱う                                             |
-| `bodyWeights`           | Dexie v11      | 省略可。import 時は空配列として扱う                                          |
+| フィールド / テーブル                                | 追加バージョン                | 旧データでの扱い                                                             |
+| ---------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------- |
+| `setAttributes`                                      | Dexie v2                      | 省略可。import 時は空配列として扱う                                          |
+| `bodyParts`                                          | Dexie v3                      | 省略可。import 時はデフォルト 7 部位 + 種目の部位名から再構築                |
+| `templates`                                          | Dexie v4                      | 省略可。import 時は空配列として扱う                                          |
+| `sets[].attributes[]`                                | Dexie v5                      | 旧 `attribute`(単数 string)は import 時に `attributes: [attribute]` へ正規化 |
+| `locations[].sortOrder`                              | Dexie v6                      | 旧データは `lastUsedAt` 降順で自動採番                                       |
+| `blockNotes`                                         | Dexie v7                      | 省略可。import 時は空配列として扱う                                          |
+| `conditions`                                         | Dexie v8                      | 省略可。import 時は空配列として扱う                                          |
+| `painRecords`                                        | Dexie v8                      | 省略可。import 時は空配列として扱う                                          |
+| `sets[].round`                                       | Dexie v9                      | 省略可。無ければ 0(その日の 1 つ目のブロック)                                |
+| `blockNotes[].round`                                 | Dexie v9                      | 省略可。import 時は 0 として扱う                                             |
+| `bodyWeights`                                        | Dexie v11                     | 省略可。import 時は空配列として扱う                                          |
+| `conditions[].sleepHours` / `conditions[].stressors` | v1.0.35(Dexie 定義は変更なし) | 省略可。無ければ記録なし                                                     |
 
 ---
 
@@ -405,7 +434,7 @@ setAttributes  (属性名の候補プール)         │
 templates      (exerciseId + tagId のリスト)│
 settings       (ユーザー設定)              │
 
-conditions   (date ごとの体調・やる気。days とは独立)
+conditions   (date ごとの体調・やる気・睡眠・生活負荷。days とは独立)
 bodyWeights  (date ごとの体重 kg。days とは独立。自重セットの換算に使う)
 painRecords  (date × area × side の痛み) ── exerciseIds[] ──→ exercises
 ```
@@ -499,7 +528,9 @@ painRecords  (date × area × side の痛み) ── exerciseIds[] ──→ exe
         "note": "フォーム安定。次回は102.5kgに挑戦"
       }
     ],
-    "conditions": [{ "date": "2026-07-08", "condition": 7, "motivation": 8 }],
+    "conditions": [
+      { "date": "2026-07-08", "condition": 7, "motivation": 8, "sleepHours": 6.5, "stressors": [] }
+    ],
     "bodyWeights": [{ "date": "2026-07-08", "weight": 60.25 }],
     "painRecords": [
       {

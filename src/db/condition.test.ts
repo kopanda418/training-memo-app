@@ -9,6 +9,7 @@ import {
   listPainsByDate,
   savePain,
   setConditionScore,
+  updateCondition,
   type PainInput,
 } from './condition'
 import { db } from './db'
@@ -48,6 +49,43 @@ describe('setConditionScore', () => {
   it('日レコード(days)を作らない(ホームジムの既定場所判定に影響させない)', async () => {
     await setConditionScore('2026-09-20', 'condition', 5)
     expect(await db.days.count()).toBe(0)
+  })
+})
+
+describe('updateCondition: 睡眠・生活負荷 (ADR-020)', () => {
+  const D = '2026-09-20'
+
+  it('睡眠・生活負荷だけでも行が残り、全項目を解除すると行が消える', async () => {
+    await updateCondition(D, { sleepHours: 6.5 })
+    await updateCondition(D, { stressors: ['childcare'] })
+    expect(await getCondition(D)).toEqual({ date: D, sleepHours: 6.5, stressors: ['childcare'] })
+    await updateCondition(D, { sleepHours: undefined })
+    await updateCondition(D, { stressors: undefined })
+    expect(await getCondition(D)).toBeUndefined()
+  })
+
+  it('負荷なし(空配列)は入力ありとして行を残す', async () => {
+    await updateCondition(D, { stressors: [] })
+    expect(await getCondition(D)).toEqual({ date: D, stressors: [] })
+  })
+
+  it('体調だけを解除しても睡眠が残っていれば行は消えない', async () => {
+    await setConditionScore(D, 'condition', 6)
+    await updateCondition(D, { sleepHours: 7 })
+    await setConditionScore(D, 'condition', undefined)
+    expect((await getCondition(D))?.sleepHours).toBe(7)
+  })
+
+  it('書き出し・読み込みで保たれ、新項目の無い旧形式もそのまま読める', async () => {
+    await updateCondition(D, { sleepHours: 5, stressors: [] })
+    const backup = await exportData()
+    backup.data.conditions = [
+      ...(backup.data.conditions ?? []),
+      { date: '2026-09-21', condition: 4 },
+    ]
+    await importData(JSON.parse(JSON.stringify(backup)))
+    expect(await getCondition(D)).toEqual({ date: D, sleepHours: 5, stressors: [] })
+    expect(await getCondition('2026-09-21')).toEqual({ date: '2026-09-21', condition: 4 })
   })
 })
 

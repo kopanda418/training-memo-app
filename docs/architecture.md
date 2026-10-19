@@ -65,7 +65,9 @@ templates: 'id, name' // v4 追加
 // { id, name, items: {exerciseId, tagId}[], createdAt } … トレーニングメニュー
 //   (同じ種目×タグが複数あれば、展開時に別の回目になる)
 conditions: 'date' // v8 追加(ADR-014)
-// { date, condition?(1〜10), motivation?(1〜10) } … 日ごとの体調・やる気。days とは別テーブル
+// { date, condition?(1〜10), motivation?(1〜10), sleepHours?(3〜10、0.5 刻み), stressors?(コード[]) }
+//   … 日ごとの体調・やる気・睡眠・生活負荷。days とは別テーブル。sleepHours/stressors は v1.0.35 で
+//   追加した非インデックス項目なのでストア定義は変えていない。stressors: [] = 負荷なし、無し = 記録なし(ADR-020)
 painRecords: 'id, date, area, [area+side]' // v8 追加(ADR-014)
 // { id, date, area(例 'knee'), regionIds[](例 'knee.medial'), side('R'|'L'|'B'|'C'),
 //   intensity(NRS 0〜10), qualities[], timings[], movements[], onset?, exerciseIds[], note?,

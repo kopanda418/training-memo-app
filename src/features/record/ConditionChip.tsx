@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router'
 import { getCondition, listPainsByDate } from '../../db/condition'
+import { sleepLabel } from '../../lib/lifeLoad'
 import { getMainScrollTop, saveRecordScroll } from './recordScroll'
 
 interface ConditionChipProps {
@@ -19,6 +20,7 @@ export function ConditionChip({ date }: ConditionChipProps) {
   const parts = [
     condition?.condition !== undefined && `体調${condition.condition}`,
     condition?.motivation !== undefined && `やる気${condition.motivation}`,
+    condition?.sleepHours !== undefined && `睡眠${sleepLabel(condition.sleepHours)}`,
     painCount ? `痛み${painCount}` : false,
   ].filter(Boolean)
 
