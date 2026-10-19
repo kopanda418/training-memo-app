@@ -2,7 +2,12 @@ import { useRef, useState } from 'react'
 import { Modal } from '../../components/Modal'
 import { showToast } from '../../components/Toast'
 import { applyPlanImport, previewPlanImport, validatePlanImportFile } from '../../db/planImport'
-import type { PlanActions, PlanImportFile, PlanImportMode } from '../../lib/planImport'
+import {
+  recommendedModeOf,
+  type PlanActions,
+  type PlanImportFile,
+  type PlanImportMode,
+} from '../../lib/planImport'
 
 interface PlanImportModalProps {
   open: boolean
@@ -33,12 +38,15 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
   const [file, setFile] = useState<PlanImportFile | null>(null)
   const [preview, setPreview] = useState<PlanActions | null>(null)
   const [mode, setMode] = useState<PlanImportMode>('skip')
+  // 実績のある種目は上書き・削除しない(ADR-019。既定オン)
+  const [keepPerformed, setKeepPerformed] = useState(true)
   const [busy, setBusy] = useState(false)
 
   const reset = () => {
     setFile(null)
     setPreview(null)
     setMode('skip')
+    setKeepPerformed(true)
   }
 
   const handleClose = () => {
@@ -49,8 +57,10 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
   const handleFile = async (rawFile: File) => {
     try {
       const parsed = validatePlanImportFile(JSON.parse(await rawFile.text()))
+      const initialMode = recommendedModeOf(parsed) ?? mode
       setFile(parsed)
-      setPreview(await previewPlanImport(parsed, { mode }))
+      setMode(initialMode)
+      setPreview(await previewPlanImport(parsed, { mode: initialMode, keepPerformed }))
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'プランファイルを読み込めませんでした')
     }
@@ -58,14 +68,33 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
 
   const handleChangeMode = async (next: PlanImportMode) => {
     setMode(next)
-    if (file) setPreview(await previewPlanImport(file, { mode: next }))
+    if (file) setPreview(await previewPlanImport(file, { mode: next, keepPerformed }))
   }
+
+  const handleChangeKeep = async (next: boolean) => {
+    setKeepPerformed(next)
+    if (file) setPreview(await previewPlanImport(file, { mode, keepPerformed: next }))
+  }
+
+  const recommended = file ? recommendedModeOf(file) : undefined
+  // 取り込むと消える、実績(回数)が入ったセットの数(ADR-019)
+  const lostPerformed = preview
+    ? preview.overwriteBlocks.reduce((n, b) => n + (b.performedSetCount ?? 0), 0) +
+      (mode === 'replaceDay'
+        ? preview.removeBlocks.reduce((n, b) => n + b.performedSetCount, 0)
+        : 0)
+    : 0
+  const performedWarning = lostPerformed
+    ? `⚠ 実績(回数)が入ったセットが ${lostPerformed} セット消えます。\n\n`
+    : ''
 
   const handleApply = async () => {
     if (!file || !preview) return
     if (mode === 'overwrite' && preview.overwriteBlocks.length > 0) {
       const list = preview.overwriteBlocks.map((b) => `・${blockLabel(b)}`).join('\n')
-      const ok = window.confirm(`次の記録は既存データと重複しています。上書きしますか?\n\n${list}`)
+      const ok = window.confirm(
+        `${performedWarning}次の記録は既存データと重複しています。上書きしますか?\n\n${list}`,
+      )
       if (!ok) return
     }
     if (
@@ -76,21 +105,35 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
       const dates = [...new Set(touched)].sort()
       const removed = preview.removeBlocks.length
         ? '\n\n【削除される種目】\n' +
-          preview.removeBlocks.map((b) => `・${blockLabel(b)}(${b.setCount}セット)`).join('\n')
+          preview.removeBlocks
+            .map(
+              (b) =>
+                `・${blockLabel(b)}(${b.setCount}セット` +
+                (b.performedSetCount ? `、うち実績 ${b.performedSetCount}` : '') +
+                ')',
+            )
+            .join('\n')
+        : ''
+      const kept = preview.keptBlocks.length
+        ? '\n\n【実績があるので残す種目】\n' +
+          preview.keptBlocks.map((b) => `・${blockLabel(b)}`).join('\n')
         : ''
       const ok = window.confirm(
-        '次の日の記録を全て消してから、プランの内容を入れ直します。' +
-          `実際に記録したセットも消えます。よろしいですか?\n\n${dates.join(' / ')}${removed}`,
+        performedWarning +
+          '次の日の記録を消してから、プランの内容を入れ直します。' +
+          (lostPerformed ? '実際に記録したセットも消えます。' : '') +
+          `よろしいですか?\n\n${dates.join(' / ')}${removed}${kept}`,
       )
       if (!ok) return
     }
     setBusy(true)
     try {
-      const result = await applyPlanImport(file, { mode })
+      const result = await applyPlanImport(file, { mode, keepPerformed })
       showToast(
         `取り込みました(追加 ${result.addBlocks.length} 件` +
           (mode !== 'skip' ? ` / 上書き ${result.overwriteBlocks.length} 件` : '') +
           (mode === 'replaceDay' ? ` / 削除 ${result.removeBlocks.length} 件` : '') +
+          (result.keptBlocks.length ? ` / 実績のため残した ${result.keptBlocks.length} 件` : '') +
           (mode === 'skip' ? ` / スキップ ${result.skipBlocks.length} 件` : '') +
           ')',
       )
@@ -202,12 +245,51 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
                       <span>
                         <span className="font-bold text-slate-700 dark:text-slate-200">
                           {m.label}
+                          {recommended === m.mode && (
+                            <span className="ml-1 font-normal text-sky-600 dark:text-sky-400">
+                              (プランの推奨)
+                            </span>
+                          )}
                         </span>
                         <span className="block text-slate-500 dark:text-slate-400">{m.hint}</span>
                       </span>
                     </label>
                   ))}
                 </div>
+                {mode !== 'skip' && (
+                  <label className="mb-2 flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1.5 text-xs dark:border-emerald-800 dark:bg-emerald-950">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={keepPerformed}
+                      onChange={(e) => void handleChangeKeep(e.target.checked)}
+                      disabled={busy}
+                    />
+                    <span>
+                      <span className="font-bold text-slate-700 dark:text-slate-200">
+                        実績のある種目は残す(おすすめ)
+                      </span>
+                      <span className="block text-slate-500 dark:text-slate-400">
+                        回数を記録したセットがある種目は、消さず・上書きせずそのまま残します
+                      </span>
+                    </span>
+                  </label>
+                )}
+                {preview.keptBlocks.length > 0 && (
+                  <>
+                    <p className="mb-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      残す(実績あり) {preview.keptBlocks.length} 件
+                    </p>
+                    <ul className="mb-2 max-h-24 overflow-y-auto text-xs text-emerald-600 dark:text-emerald-400">
+                      {preview.keptBlocks.map((b, i) => (
+                        <li key={i}>
+                          {blockLabel(b)} — 実績 {b.performedSetCount}/{b.setCount}セット
+                          {b.inPlan && '(プラン側は取り込まない)'}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
                 {mode === 'skip' && (
                   <>
                     <p className="mb-1 text-xs font-bold text-slate-400">
@@ -227,7 +309,14 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
                     </p>
                     <ul className="max-h-24 overflow-y-auto text-xs text-amber-600 dark:text-amber-400">
                       {preview.overwriteBlocks.map((b, i) => (
-                        <li key={i}>{blockLabel(b)}</li>
+                        <li key={i}>
+                          {blockLabel(b)}
+                          {!!b.performedSetCount && (
+                            <span className="ml-1 font-bold text-red-600 dark:text-red-400">
+                              ⚠ 実績 {b.performedSetCount}セットが消える
+                            </span>
+                          )}
+                        </li>
                       ))}
                     </ul>
                   </>
@@ -241,6 +330,11 @@ export function PlanImportModal({ open, onClose }: PlanImportModalProps) {
                       {preview.removeBlocks.map((b, i) => (
                         <li key={i}>
                           {blockLabel(b)} — {b.setCount}セット
+                          {b.performedSetCount > 0 && (
+                            <span className="ml-1 font-bold">
+                              ⚠ うち実績 {b.performedSetCount}セット
+                            </span>
+                          )}
                         </li>
                       ))}
                       {preview.removeBlocks.length === 0 && (

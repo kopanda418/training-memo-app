@@ -49,8 +49,21 @@ export interface PlanImportFile {
   app: 'training-memo-app'
   kind: 'plan-import'
   formatVersion: number
+  /** 生成側が勧める上書き方法(任意)。取り込み画面の初期値になる(ADR-019) */
+  recommendedMode?: PlanImportMode
   days: PlanDayInput[]
 }
+
+const PLAN_IMPORT_MODES: readonly string[] = ['skip', 'overwrite', 'replaceDay']
+
+/** ファイルの recommendedMode を読む。無い・不明な値なら undefined */
+export const recommendedModeOf = (file: PlanImportFile): PlanImportMode | undefined =>
+  typeof file.recommendedMode === 'string' && PLAN_IMPORT_MODES.includes(file.recommendedMode)
+    ? file.recommendedMode
+    : undefined
+
+/** 実績が入っているセットか(reps 0 = 未実施の予定。ADR-019) */
+export const isPerformedSet = (s: { reps: number }): boolean => s.reps > 0
 
 export function validatePlanImportFile(value: unknown): PlanImportFile {
   if (typeof value !== 'object' || value === null) {
@@ -102,7 +115,15 @@ export interface ExistingPlanData {
   /** 既存セットの `date|exerciseId|tagId|round` キー集合(スキップ判定用) */
   setKeys: ReadonlySet<string>
   /** 既存のブロック一覧(replaceDay で削除される種目のプレビュー用。ADR-016) */
-  blocks?: { date: string; exerciseId: string; tagId: string; round: number; setCount: number }[]
+  blocks?: {
+    date: string
+    exerciseId: string
+    tagId: string
+    round: number
+    setCount: number
+    /** 実績が入っているセット数(ADR-019) */
+    performedSetCount?: number
+  }[]
 }
 
 export function setKeyOf(date: string, exerciseId: string, tagId: string, round = 0): string {
@@ -123,6 +144,8 @@ export interface PlanBlock {
   /** 種目単位のプラン指示(blockNotes.planNote へ書く) */
   note?: string
   sets: PlanSetInput[]
+  /** 上書きで消える既存ブロックの、実績が入ったセット数(overwriteBlocks のみ。ADR-019) */
+  performedSetCount?: number
 }
 
 export interface PlanActions {
@@ -144,6 +167,21 @@ export interface PlanActions {
     tagName?: string
     round: number
     setCount: number
+    /** 実績が入ったセット数(ADR-019) */
+    performedSetCount: number
+  }[]
+  /** 実績があるため消さずに残すブロック(keepPerformed のとき。ADR-019) */
+  keptBlocks: {
+    date: string
+    exerciseId: string
+    tagId: string
+    exerciseName: string
+    tagName?: string
+    round: number
+    setCount: number
+    performedSetCount: number
+    /** 新プランにも同じブロックがあった(= プラン側を取り込まない) */
+    inPlan: boolean
   }[]
   /** 取り込み不可のエラー(該当項目は addBlocks に含まれない) */
   errors: string[]
@@ -161,6 +199,8 @@ export interface ComputePlanActionsOptions {
   mode?: PlanImportMode
   /** @deprecated mode: 'overwrite' と同じ(互換用) */
   overwrite?: boolean
+  /** 実績のあるブロックは上書き・削除せず残す(ADR-019。取り込み画面の既定はオン) */
+  keepPerformed?: boolean
 }
 
 export const planImportModeOf = (options?: ComputePlanActionsOptions): PlanImportMode =>
@@ -186,7 +226,29 @@ export function computePlanActions(
     overwriteBlocks: [],
     skipBlocks: [],
     removeBlocks: [],
+    keptBlocks: [],
     errors: [],
+  }
+  const keepPerformed = overwrite && !!options?.keepPerformed
+  const existingBlockByKey = new Map(
+    (existing.blocks ?? []).map((b) => [setKeyOf(b.date, b.exerciseId, b.tagId, b.round), b]),
+  )
+  const exerciseNameById = new Map(existing.exercises.map((e) => [e.id, e.name]))
+  const tagNameById = new Map(existing.tags.map((t) => [t.id, t.name]))
+  const keptKeys = new Set<string>()
+  const keep = (b: NonNullable<ExistingPlanData['blocks']>[number], inPlan: boolean) => {
+    keptKeys.add(setKeyOf(b.date, b.exerciseId, b.tagId, b.round))
+    actions.keptBlocks.push({
+      date: b.date,
+      exerciseId: b.exerciseId,
+      tagId: b.tagId,
+      exerciseName: exerciseNameById.get(b.exerciseId) ?? '(不明な種目)',
+      tagName: b.tagId === NO_TAG ? undefined : (tagNameById.get(b.tagId) ?? '(不明なタグ)'),
+      round: b.round,
+      setCount: b.setCount,
+      performedSetCount: b.performedSetCount ?? 0,
+      inPlan,
+    })
   }
 
   const exerciseByName = new Map(existing.exercises.map((e) => [e.name, e]))
@@ -262,10 +324,18 @@ export function computePlanActions(
         note,
         sets: item.sets,
       }
+      const existingBlock = hasConflict
+        ? existingBlockByKey.get(setKeyOf(date, existingExercise!.id, existingTagId!, round))
+        : undefined
+      const performedSetCount = existingBlock?.performedSetCount ?? 0
       if (hasConflict && !overwrite) {
         actions.skipBlocks.push({ date, exerciseName, tagName, round })
+      } else if (hasConflict && keepPerformed && performedSetCount > 0 && existingBlock) {
+        keep(existingBlock, true)
       } else if (hasConflict && overwrite) {
-        actions.overwriteBlocks.push(block)
+        actions.overwriteBlocks.push(
+          performedSetCount > 0 ? { ...block, performedSetCount } : block,
+        )
       } else {
         actions.addBlocks.push(block)
       }
@@ -281,17 +351,21 @@ export function computePlanActions(
       if (ex && tagId !== undefined) planKeys.add(setKeyOf(b.date, ex.id, tagId, b.round))
     }
     const planDates = new Set(file.days.map((d) => d.date))
-    const exerciseNameById = new Map(existing.exercises.map((e) => [e.id, e.name]))
-    const tagNameById = new Map(existing.tags.map((t) => [t.id, t.name]))
     for (const b of existing.blocks ?? []) {
       if (!planDates.has(b.date)) continue
-      if (planKeys.has(setKeyOf(b.date, b.exerciseId, b.tagId, b.round))) continue
+      const key = setKeyOf(b.date, b.exerciseId, b.tagId, b.round)
+      if (planKeys.has(key) || keptKeys.has(key)) continue
+      if (keepPerformed && (b.performedSetCount ?? 0) > 0) {
+        keep(b, false)
+        continue
+      }
       actions.removeBlocks.push({
         date: b.date,
         exerciseName: exerciseNameById.get(b.exerciseId) ?? '(不明な種目)',
         tagName: b.tagId === NO_TAG ? undefined : (tagNameById.get(b.tagId) ?? '(不明なタグ)'),
         round: b.round,
         setCount: b.setCount,
+        performedSetCount: b.performedSetCount ?? 0,
       })
     }
   }

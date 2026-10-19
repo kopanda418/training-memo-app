@@ -84,7 +84,14 @@ describe('プラン取り込みの上書き方法', () => {
     const { bench, curl, squat, newPlan } = await setup()
     const preview = await previewPlanImport(newPlan, { mode: 'replaceDay' })
     expect(preview.removeBlocks).toEqual([
-      { date: D, exerciseName: squat.name, tagName: undefined, round: 0, setCount: 1 },
+      {
+        date: D,
+        exerciseName: squat.name,
+        tagName: undefined,
+        round: 0,
+        setCount: 1,
+        performedSetCount: 0,
+      },
     ])
     expect(preview.overwriteBlocks.map((b) => b.exerciseName)).toEqual([curl.name, bench.name])
 
@@ -133,5 +140,57 @@ describe('プラン取り込みの上書き方法', () => {
     const { squat, newPlan } = await setup()
     await applyPlanImport(newPlan, { overwrite: true })
     expect((await listSetsByDate(D)).some((s) => s.exerciseId === squat.id)).toBe(true)
+  })
+
+  it('実績のある種目は残す: 置き換えでも実績ブロックは消さず、プランの同じブロックも取り込まない', async () => {
+    const { bench, curl, squat, newPlan } = await setup()
+    // ベンチの 1 セット目に回数を記録(= 実績)。スクワット・カールは予定のまま
+    const benchSets = (await listSetsByDate(D)).filter((s) => s.exerciseId === bench.id)
+    await updateSet(benchSets[0].id, { reps: 5 })
+    await setBlockNote(D, B(bench.id), 'ベンチ感想')
+
+    const preview = await previewPlanImport(newPlan, { mode: 'replaceDay', keepPerformed: true })
+    expect(preview.keptBlocks.map((b) => [b.exerciseName, b.performedSetCount, b.inPlan])).toEqual([
+      [bench.name, 1, true],
+    ])
+    expect(preview.overwriteBlocks.map((b) => b.exerciseName)).toEqual([curl.name])
+    expect(preview.removeBlocks.map((b) => b.exerciseName)).toEqual([squat.name])
+
+    await applyPlanImport(newPlan, { mode: 'replaceDay', keepPerformed: true })
+    expect((await listSetsByDate(D)).map((s) => [s.exerciseId, s.weight, s.reps])).toEqual([
+      [bench.id, 80, 5],
+      [bench.id, 80, 0],
+      [curl.id, 14, 0],
+    ])
+    expect(await getBlockNote(D, B(bench.id))).toMatchObject({
+      note: 'ベンチ感想',
+      planNote: '旧ベンチ指示',
+    })
+  })
+
+  it('実績のある種目は残す: プランに無い実績ブロックも残す。重複のみ上書きでも同じ', async () => {
+    const [bench, curl] = await db.exercises.toArray()
+    await addSet({ date: D, exerciseId: curl.id, weight: 12, reps: 10 })
+    const plan = planFile([{ date: D, items: [{ exercise: bench.name, sets: [{ weight: 80 }] }] }])
+    const result = await applyPlanImport(plan, { mode: 'replaceDay', keepPerformed: true })
+    expect(result.removeBlocks).toEqual([])
+    expect(result.keptBlocks.map((b) => [b.exerciseName, b.inPlan])).toEqual([[curl.name, false]])
+    expect((await listSetsByDate(D)).map((s) => s.exerciseId)).toEqual([curl.id, bench.id])
+
+    const again = planFile([{ date: D, items: [{ exercise: curl.name, sets: [{ weight: 20 }] }] }])
+    const overwritten = await applyPlanImport(again, { mode: 'overwrite', keepPerformed: true })
+    expect(overwritten.overwriteBlocks).toEqual([])
+    expect((await listSetsByDate(D)).find((s) => s.exerciseId === curl.id)?.weight).toBe(12)
+  })
+
+  it('実績を残さない場合: 消える実績セットの数をプレビューに出す', async () => {
+    const [bench, curl] = await db.exercises.toArray()
+    await addSet({ date: D, exerciseId: curl.id, weight: 12, reps: 10 })
+    await addSet({ date: D, exerciseId: bench.id, weight: 80, reps: 3 })
+    const plan = planFile([{ date: D, items: [{ exercise: bench.name, sets: [{ weight: 85 }] }] }])
+    const preview = await previewPlanImport(plan, { mode: 'replaceDay' })
+    expect(preview.keptBlocks).toEqual([])
+    expect(preview.removeBlocks.map((b) => b.performedSetCount)).toEqual([1])
+    expect(preview.overwriteBlocks.map((b) => b.performedSetCount)).toEqual([1])
   })
 })

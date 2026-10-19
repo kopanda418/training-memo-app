@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { NO_TAG } from '../db/types'
 import {
   computePlanActions,
+  isPerformedSet,
+  recommendedModeOf,
   setKeyOf,
   validatePlanImportFile,
   type ExistingPlanData,
@@ -293,5 +295,20 @@ describe('computePlanActions', () => {
     expect(actions.createExercises).toEqual([{ name: 'ベンチプレス', bodyPart: '胸' }])
     expect(actions.addBlocks).toHaveLength(2)
     expect(actions.errors).toEqual([])
+  })
+})
+
+describe('recommendedModeOf / isPerformedSet (ADR-019)', () => {
+  it('recommendedMode は 3 つの値だけ受け付け、不明な値は無視する', () => {
+    expect(recommendedModeOf(baseFile([]))).toBeUndefined()
+    expect(recommendedModeOf({ ...baseFile([]), recommendedMode: 'replaceDay' })).toBe('replaceDay')
+    expect(
+      recommendedModeOf({ ...baseFile([]), recommendedMode: 'wipe' as unknown as 'skip' }),
+    ).toBeUndefined()
+  })
+
+  it('reps > 0 のセットを実績とみなす', () => {
+    expect(isPerformedSet({ reps: 0 })).toBe(false)
+    expect(isPerformedSet({ reps: 1 })).toBe(true)
   })
 })

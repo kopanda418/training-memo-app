@@ -1,5 +1,6 @@
 import {
   computePlanActions,
+  isPerformedSet,
   planImportModeOf,
   setKeyOf,
   type ComputePlanActionsOptions,
@@ -37,6 +38,7 @@ async function loadExistingPlanData(): Promise<ExistingPlanData> {
         tagId: b.tagId,
         round: b.round,
         setCount: b.sets.length,
+        performedSetCount: b.sets.filter(isPerformedSet).length,
       })),
     ),
     exercises: exercises.map((e) => ({ id: e.id, name: e.name })),
@@ -141,6 +143,13 @@ export async function applyPlanImport(
       // replaceDay: ファイルに含まれる日の全セットを先に消す(ADR-016)。新プランにも同じブロックが
       // あれば、ユーザーのセットメモ(セット順)と種目メモを引き継ぐ。無いブロックのメモは消す
       const carriedMemos = new Map<string, (string | undefined)[]>()
+      // 実績があるので残すブロック(ADR-019)。セットもメモも消さない
+      const keptKeys = new Set(
+        actions.keptBlocks.map(
+          (b) =>
+            `${b.date}|${blockKeyString({ exerciseId: b.exerciseId, tagId: b.tagId, round: b.round })}`,
+        ),
+      )
       if (replaceDay) {
         const newDayDates = new Set(actions.newDays.map((d) => d.date))
         const planKeys = new Set(
@@ -155,9 +164,11 @@ export async function applyPlanImport(
             const locationId = await resolveOrCreateLocationId(day.location)
             await db.days.update(day.date, { locationId })
           }
-          const daySets = (await db.sets.where('date').equals(day.date).toArray()).sort(
-            (a, b) => a.orderInDay - b.orderInDay,
-          )
+          const daySets = (await db.sets.where('date').equals(day.date).toArray())
+            .filter(
+              (s) => !keptKeys.has(`${s.date}|${blockKeyString({ ...s, round: s.round ?? 0 })}`),
+            )
+            .sort((a, b) => a.orderInDay - b.orderInDay)
           for (const s of daySets) {
             const k = `${s.date}|${blockKeyString({ ...s, round: s.round ?? 0 })}`
             carriedMemos.set(k, [...(carriedMemos.get(k) ?? []), s.memo])
@@ -166,7 +177,10 @@ export async function applyPlanImport(
           const notes = await db.blockNotes.where('date').equals(day.date).toArray()
           await db.blockNotes.bulkDelete(
             notes
-              .filter((n) => !planKeys.has(`${n.date}|${blockKeyString(n)}`))
+              .filter((n) => {
+                const k = `${n.date}|${blockKeyString(n)}`
+                return !planKeys.has(k) && !keptKeys.has(k)
+              })
               .map((n): [string, string, string, number] => [
                 n.date,
                 n.exerciseId,
