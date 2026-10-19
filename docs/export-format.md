@@ -24,7 +24,8 @@
     "templates":    [...],
     "blockNotes":   [...],
     "conditions":   [...],
-    "painRecords":  [...]
+    "painRecords":  [...],
+    "bodyWeights":  [...]
   }
 }
 ```
@@ -95,7 +96,7 @@ interface WorkoutSet {
   isWarmup?: boolean // ウォームアップセットか(週間集計・MAX 判定から除外)
   reps: number // 実績レップ数
   rpe?: number // RPE (Rate of Perceived Exertion, 例: 8.5)
-  attributes?: string[] // セット属性(例: ["左", "フル"])。なければ undefined または []
+  attributes?: string[] // セット属性(例: ["左", "フル"])。なければ undefined または []。"右"/"左" は排他(ADR-018)
   unit: 'kg' | 'lbs' // 重量単位
   memo?: string // セットメモ(ユーザーが書く欄。プラン取り込みは書き換えない)
   planMemo?: string // プラン取り込みが書いたそのセットの指示(読み取り専用表示。v1.0.24〜/ADR-013)
@@ -144,18 +145,18 @@ interface Setting {
 }
 ```
 
-| key                       | value の型 | 内容                                             | デフォルト           |
-| ------------------------- | ---------- | ------------------------------------------------ | -------------------- |
-| `bodyWeight`              | `number`   | 自重(kg)。自重種目の 1RM 換算に使う              | —                    |
-| `theme`                   | `'light'   | 'dark'                                           | 'system'`            | UI テーマ | `'dark'` |
-| `defaultUnit`             | `'kg'      | 'lbs'`                                           | 新規セットの重量単位 | `'kg'`    |
-| `wakeLockEnabled`         | `boolean`  | タイマー中の画面ロック防止                       | `true`               |
-| `timerSound`              | `string`   | タイマー終了音の ID                              | `'rising'`           |
-| `nativeTimerEnabled`      | `boolean`  | iOS ショートカット経由でネイティブタイマーを使う | `false`              |
-| `nativeTimerShortcutName` | `string`   | 呼び出すショートカット名                         | `'筋トレタイマー'`   |
-| `defaultLocationId`       | `string`   | ホームジム(自動付与する場所の ID)。`''` で無効   | —                    |
-| `quickSetAttributes`      | `string[]` | 属性クイックボタン(最大 3)                       | `['左','右','フル']` |
-| `quickExerciseTagIds`     | `string[]` | 種目タグのクイックボタン(tag id、最大 3)         | —                    |
+| key                       | value の型 | 内容                                                   | デフォルト           |
+| ------------------------- | ---------- | ------------------------------------------------------ | -------------------- |
+| `bodyWeight`              | `number`   | 体重(kg)の固定値。`bodyWeights` に記録が無い日の換算用 | —                    |
+| `theme`                   | `'light'   | 'dark'                                                 | 'system'`            | UI テーマ | `'dark'` |
+| `defaultUnit`             | `'kg'      | 'lbs'`                                                 | 新規セットの重量単位 | `'kg'`    |
+| `wakeLockEnabled`         | `boolean`  | タイマー中の画面ロック防止                             | `true`               |
+| `timerSound`              | `string`   | タイマー終了音の ID                                    | `'rising'`           |
+| `nativeTimerEnabled`      | `boolean`  | iOS ショートカット経由でネイティブタイマーを使う       | `false`              |
+| `nativeTimerShortcutName` | `string`   | 呼び出すショートカット名                               | `'筋トレタイマー'`   |
+| `defaultLocationId`       | `string`   | ホームジム(自動付与する場所の ID)。`''` で無効         | —                    |
+| `quickSetAttributes`      | `string[]` | 属性クイックボタン(最大 3。左右は除く/ADR-018)         | `['フル']`           |
+| `quickExerciseTagIds`     | `string[]` | 種目タグのクイックボタン(tag id、最大 3)               | —                    |
 
 ### setAttributes — セット属性バンク
 
@@ -350,6 +351,27 @@ interface PainRecord {
 | `gradual` | だんだん           |
 | `unknown` | わからない         |
 
+### bodyWeights — 日ごとの体重(v1.0.32〜/ADR-017)
+
+体調画面(「🩺 体調・痛み」)から入力する 1 日 1 行の体重。主キーは `date` で、同じ日に入力し直すと
+上書きされる(空にすると行ごと消える)。`days` とは別テーブルで、トレーニング記録が無い日(休養日)にも
+存在しうる。毎日あるとは限らない。
+
+```ts
+interface BodyWeight {
+  date: string // "YYYY-MM-DD" (端末ローカルタイムゾーン基準。主キー)
+  weight: number // 体重(kg。小数第二位までに丸めて保存。0 < weight < 1000)
+}
+```
+
+**読み方の注意:**
+
+- 単位は常に kg(`settings.defaultUnit` が lbs でも体重は kg)
+- 自重セット(`sets[].isBodyweight: true`)の「体重 + 加重」換算には、**そのセットの日の体重**、無ければ
+  **その日より前の直近の記録**を使う。それより前に記録が無ければ `settings` の `bodyWeight`(固定値)を使う。
+  アプリの推定 1RM・総負荷量・MAX 判定はこの順で計算している(正本は `src/lib/bodyWeight.ts`)
+- `settings.bodyWeight` は v1.0.31 以前からある単一の設定値で、日ごとの記録とは別物(上記の最後の代替値)
+
 ---
 
 ## 旧バックアップとの互換性
@@ -366,6 +388,7 @@ interface PainRecord {
 | `painRecords`           | Dexie v8       | 省略可。import 時は空配列として扱う                                          |
 | `sets[].round`          | Dexie v9       | 省略可。無ければ 0(その日の 1 つ目のブロック)                                |
 | `blockNotes[].round`    | Dexie v9       | 省略可。import 時は 0 として扱う                                             |
+| `bodyWeights`           | Dexie v11      | 省略可。import 時は空配列として扱う                                          |
 
 ---
 
@@ -383,6 +406,7 @@ templates      (exerciseId + tagId のリスト)│
 settings       (ユーザー設定)              │
 
 conditions   (date ごとの体調・やる気。days とは独立)
+bodyWeights  (date ごとの体重 kg。days とは独立。自重セットの換算に使う)
 painRecords  (date × area × side の痛み) ── exerciseIds[] ──→ exercises
 ```
 
@@ -390,7 +414,7 @@ painRecords  (date × area × side の痛み) ── exerciseIds[] ──→ exe
 - `exerciseId + tagId` の組み合わせが分析の基本単位
 - `days` は 1 日 1 行のメタ情報(場所・その日全体の感想メモ)
 - `blockNotes` は `date + exerciseId + tagId + round` 単位の感想メモ。ブロック(その日のその種目の何回目か)に紐づく
-- `conditions` / `painRecords` は日付で `days`・`sets` と突き合わせられるが、トレーニングしていない日の記録もある
+- `conditions` / `painRecords` / `bodyWeights` は日付で `days`・`sets` と突き合わせられるが、トレーニングしていない日の記録もある
 
 ---
 
@@ -476,6 +500,7 @@ painRecords  (date × area × side の痛み) ── exerciseIds[] ──→ exe
       }
     ],
     "conditions": [{ "date": "2026-07-08", "condition": 7, "motivation": 8 }],
+    "bodyWeights": [{ "date": "2026-07-08", "weight": 60.25 }],
     "painRecords": [
       {
         "id": "pain-001",
