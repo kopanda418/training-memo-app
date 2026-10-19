@@ -8,6 +8,7 @@ import {
 } from '../lib/groupSets'
 import { estimateOneRepMax } from '../lib/oneRepMax'
 import { effectiveLoad } from '../lib/setFormat'
+import { cycleSideAttributes } from '../lib/setSide'
 import { loadBodyWeightOf } from './bodyWeight'
 import { db } from './db'
 import { getSetting, setSetting } from './settings'
@@ -576,6 +577,15 @@ export async function toggleSetAttribute(setId: string, name: string): Promise<v
       await upsertSetAttribute(trimmed)
     }
     await db.sets.update(setId, { attributes: next })
+  })
+}
+
+/** セットの左右を 無 → 右 → 左 → 無 の順に切り替える(ADR-018。左右は排他) */
+export async function cycleSetSide(setId: string): Promise<void> {
+  await db.transaction('rw', [db.sets], async () => {
+    const set = await db.sets.get(setId)
+    if (!set) return
+    await db.sets.update(setId, { attributes: cycleSideAttributes(set.attributes) })
   })
 }
 

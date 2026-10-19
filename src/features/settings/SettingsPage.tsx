@@ -9,6 +9,7 @@ import { db } from '../../db/db'
 import { listLocations } from '../../db/repository'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, setSetting, useSetting } from '../../db/settings'
 import { todayString } from '../../lib/date'
+import { isSideAttribute } from '../../lib/setSide'
 import { APP_VERSION } from '../../app/version'
 import {
   MAX_BOTTOM_GAP,
@@ -35,7 +36,10 @@ export function SettingsPage() {
   const timerSound = (useSetting<SoundId>('timerSound') ?? 'rising') as SoundId
   const nativeTimerEnabled = useSetting<boolean>('nativeTimerEnabled') ?? false
   const nativeShortcutName = useSetting<string>('nativeTimerShortcutName') ?? DEFAULT_SHORTCUT_NAME
-  const quickAttrs = useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
+  // 左右は専用ボタンになった(ADR-018)ので、旧設定に残っていても未設定として扱う
+  const quickAttrs = (
+    useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
+  ).map((q) => (isSideAttribute(q) ? '' : q))
   const quickTagIds = useSetting<string[]>('quickExerciseTagIds')
   const tags = useLiveQuery(() => db.tags.orderBy('sortOrder').toArray(), [])
   const defaultLocationId = useSetting<string>('defaultLocationId')

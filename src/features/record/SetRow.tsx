@@ -4,12 +4,19 @@ import { CSS } from '@dnd-kit/utilities'
 import { CommitInput } from '../../components/CommitInput'
 import { SwipeToDelete } from '../../components/SwipeToDelete'
 import { showToast } from '../../components/Toast'
-import { deleteSet, detectMaxUpdate, toggleSetAttribute, updateSet } from '../../db/repository'
+import {
+  cycleSetSide,
+  deleteSet,
+  detectMaxUpdate,
+  toggleSetAttribute,
+  updateSet,
+} from '../../db/repository'
 import { useBodyWeightOn } from '../../db/bodyWeight'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, useSetting } from '../../db/settings'
 import type { WorkoutSet } from '../../db/types'
 import { estimateOneRepMax } from '../../lib/oneRepMax'
 import { effectiveLoad } from '../../lib/setFormat'
+import { isSideAttribute, sideOf } from '../../lib/setSide'
 import { AttributePicker } from './AttributePicker'
 
 interface SetRowProps {
@@ -71,7 +78,7 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
   const bodyWeight = useBodyWeightOn(set.date)
   const quickAttrs = (
     useSetting<string[]>('quickSetAttributes') ?? DEFAULT_QUICK_SET_ATTRIBUTES
-  ).filter((q) => q.trim() !== '')
+  ).filter((q) => q.trim() !== '' && !isSideAttribute(q))
   const [attrPickerOpen, setAttrPickerOpen] = useState(false)
 
   // セット番号を長押し → ドラッグで並び替え(挿し込み)。番号部分だけが持ち手
@@ -80,6 +87,9 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
   })
 
   const attrs = set.attributes ?? []
+  const side = sideOf(attrs)
+  // 左右は専用ボタンで表示するので、チップには出さない
+  const otherAttrs = attrs.filter((a) => !isSideAttribute(a))
   // 自重セットは「体重 + 加重」で 1RM 換算(体重未登録なら換算しない)
   const load = effectiveLoad(set, bodyWeight)
   const oneRm = load !== undefined ? estimateOneRepMax(load, set.reps) : 0
@@ -257,9 +267,21 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
             >
               自
             </button>
+            <button
+              type="button"
+              title="左右(タップで 無 → 右 → 左 と切り替え)"
+              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                side
+                  ? 'bg-violet-100 text-violet-600 dark:bg-violet-900/60 dark:text-violet-300'
+                  : 'border border-slate-200 text-slate-400 active:bg-slate-100 dark:border-slate-700 dark:active:bg-slate-700'
+              }`}
+              onClick={() => void cycleSetSide(set.id)}
+            >
+              {side ?? '無'}
+            </button>
             <div className="flex flex-wrap items-center gap-1">
               {/* 付いている属性: タップで外す */}
-              {attrs.map((a) => (
+              {otherAttrs.map((a) => (
                 <button
                   key={a}
                   type="button"

@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Modal } from '../../components/Modal'
 import { listSetAttributes, upsertSetAttribute } from '../../db/repository'
 import { DEFAULT_QUICK_SET_ATTRIBUTES, useSetting } from '../../db/settings'
+import { isSideAttribute } from '../../lib/setSide'
 
 interface AttributePickerProps {
   open: boolean
@@ -24,8 +25,10 @@ export function AttributePicker({ open, onClose, current, onToggle }: AttributeP
   const trimmed = query.trim()
   const has = (name: string) => current.includes(name)
 
-  // クイック + バンクを重複なくまとめ、検索で絞る
-  const names = [...new Set([...quicks, ...(bank ?? []).map((a) => a.name)])]
+  // クイック + バンクを重複なくまとめ、検索で絞る。左右は専用ボタンで切り替えるので除く(ADR-018)
+  const names = [...new Set([...quicks, ...(bank ?? []).map((a) => a.name)])].filter(
+    (n) => !isSideAttribute(n),
+  )
   const filtered = names.filter((n) => !trimmed || n.includes(trimmed))
   const hasExactMatch = names.includes(trimmed)
 
@@ -58,7 +61,12 @@ export function AttributePicker({ open, onClose, current, onToggle }: AttributeP
               {name}
             </button>
           ))}
-          {trimmed && !hasExactMatch && (
+          {trimmed && isSideAttribute(trimmed) && (
+            <p className="w-full py-1 text-xs text-slate-400">
+              左右はセット行の「無/右/左」ボタンで切り替えます
+            </p>
+          )}
+          {trimmed && !hasExactMatch && !isSideAttribute(trimmed) && (
             <button
               type="button"
               className="rounded-full border border-dashed border-sky-400 px-3 py-2 text-sm text-sky-600 active:bg-sky-50 dark:text-sky-400"

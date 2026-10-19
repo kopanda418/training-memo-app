@@ -39,6 +39,7 @@ import {
   setDayLocation,
   setDayNote,
   toggleSetAttribute,
+  cycleSetSide,
   transferSets,
   updateSet,
 } from './repository'
@@ -373,6 +374,20 @@ describe('toggleSetAttribute / listSetAttributes(属性バンク)', () => {
     await toggleSetAttribute(s1.id, 'ベルトなし')
     expect((await db.sets.get(s1.id))?.attributes ?? []).not.toContain('ベルトなし')
     expect(await db.setAttributes.count()).toBe(2) // バンクは残る
+  })
+})
+
+describe('cycleSetSide(左右の切り替え、ADR-018)', () => {
+  it('無 → 右 → 左 → 無 と切り替わり、他の属性は残る', async () => {
+    const ex = (await db.exercises.toArray())[0]
+    const s = await addSet({ date: '2026-07-01', exerciseId: ex.id, weight: 20, reps: 10 })
+    await toggleSetAttribute(s.id, 'フル')
+    await cycleSetSide(s.id)
+    expect((await db.sets.get(s.id))?.attributes).toEqual(['フル', '右'])
+    await cycleSetSide(s.id)
+    expect((await db.sets.get(s.id))?.attributes).toEqual(['フル', '左'])
+    await cycleSetSide(s.id)
+    expect((await db.sets.get(s.id))?.attributes).toEqual(['フル'])
   })
 })
 

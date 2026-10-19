@@ -15,7 +15,8 @@ export type SettingKey =
   | 'defaultLocationId' // string: 記録初回入力時に自動付与する既定の場所(ホームジム。'' で無効)
 
 /** セット属性クイックボタンの初期値(設定で変更可能)。RPE は専用欄へ移ったため動作系を既定に */
-export const DEFAULT_QUICK_SET_ATTRIBUTES = ['左', '右', 'フル']
+/** 左右は専用の切り替えボタンがあるので含めない(ADR-018) */
+export const DEFAULT_QUICK_SET_ATTRIBUTES = ['フル']
 
 export async function getSetting<T>(key: SettingKey): Promise<T | undefined> {
   const row = await db.settings.get(key)
