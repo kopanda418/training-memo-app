@@ -5,26 +5,55 @@ import { useNavigationType } from 'react-router'
 // 汎用フレームワークにしない。保存は履歴への遷移ボタン押下時のみ
 // (スクロールリスナーは張らない=記録入力の応答速度ルール遵守)。
 
-let saved: { date: string; top: number } | null = null
+/**
+ * 保存するスクロール位置。scrollTop の数値だけだと、戻った直後は各ブロックの
+ * 前回記録パネル(useLiveQuery)が未描画で上側が短く、同じ数値でも違う場所に
+ * なる(後から伸びた分だけズレる)。そこで画面上端に見えていたブロックと
+ * その表示位置(アンカー)を覚え、復元はアンカー基準で行う。
+ */
+export interface RecordScrollPos {
+  top: number
+  anchor?: { key: string; offset: number }
+}
+
+let saved: { date: string; pos: RecordScrollPos } | null = null
 
 /** 記録画面を離れる直前(履歴遷移ボタンの onClick)に呼ぶ */
-export function saveRecordScroll(date: string, top: number): void {
-  saved = { date, top }
+export function saveRecordScroll(date: string, pos: RecordScrollPos): void {
+  saved = { date, pos }
 }
 
 /**
- * 保存値を常に消費(クリア)し、日付が一致した時だけ top を返す。
+ * 保存値を常に消費(クリア)し、日付が一致した時だけ位置を返す。
  * 不一致でもクリアするのは、古い値が後日誤って復元されるのを防ぐため。
  */
-export function consumeRecordScroll(date: string): number | null {
+export function consumeRecordScroll(date: string): RecordScrollPos | null {
   const s = saved
   saved = null
-  return s !== null && s.date === date ? s.top : null
+  return s !== null && s.date === date ? s.pos : null
 }
 
-/** スクロールコンテナ(App.tsx の唯一の main 要素)の現在位置 */
-export function getMainScrollTop(): number {
-  return document.querySelector('main')?.scrollTop ?? 0
+const blockSelector = '[data-record-block]'
+
+/**
+ * スクロールコンテナ(App.tsx の唯一の main 要素)の現在位置と、
+ * 固定ヘッダーの下に最初に見えている種目ブロック(アンカー)
+ */
+export function getRecordScrollPos(): RecordScrollPos {
+  const main = document.querySelector('main')
+  if (!main) return { top: 0 }
+  const mainTop = main.getBoundingClientRect().top
+  const headerBottom = main.querySelector('header')?.getBoundingClientRect().bottom ?? mainTop
+  for (const el of main.querySelectorAll<HTMLElement>(blockSelector)) {
+    const rect = el.getBoundingClientRect()
+    if (rect.bottom > headerBottom) {
+      return {
+        top: main.scrollTop,
+        anchor: { key: el.dataset.recordBlock ?? '', offset: rect.top - mainTop },
+      }
+    }
+  }
+  return { top: main.scrollTop }
 }
 
 /**
@@ -50,19 +79,46 @@ export function useRestoreRecordScroll(date: string, ready: boolean): void {
   useLayoutEffect(() => {
     if (done.current || !ready) return
     done.current = true
-    const top = consumeRecordScroll(date)
-    if (top === null || top === 0 || navigationType !== 'POP') return
+    const pos = consumeRecordScroll(date)
+    if (pos === null || pos.top === 0 || navigationType !== 'POP') return
     const main = document.querySelector('main')
     if (!main) return
-    main.scrollTop = top
-    // 各ブロック内の useLiveQuery(前回記録パネル等)が後から高さを伸ばし
-    // scrollTop が clamp される間だけ数フレーム再適用。目標に達したら即終了
-    let tries = 15
-    const tick = () => {
-      if (main.scrollTop >= top - 1 || --tries < 0) return
-      main.scrollTop = top
-      requestAnimationFrame(tick)
+    const anchorEl = pos.anchor
+      ? [...main.querySelectorAll<HTMLElement>(blockSelector)].find(
+          (el) => el.dataset.recordBlock === pos.anchor?.key,
+        )
+      : undefined
+    const apply = () => {
+      const target =
+        anchorEl?.isConnected && pos.anchor
+          ? main.scrollTop +
+            anchorEl.getBoundingClientRect().top -
+            main.getBoundingClientRect().top -
+            pos.anchor.offset
+          : pos.top
+      if (Math.abs(main.scrollTop - target) > 1) main.scrollTop = target
     }
-    requestAnimationFrame(tick)
+    apply()
+    // 各ブロック内の useLiveQuery(前回記録パネル等)が後から高さを伸ばすので、
+    // 高さが落ち着くまで毎フレーム合わせ直す。ユーザーが触ったら即やめる
+    let frame = 0
+    let stable = 0
+    let lastHeight = main.scrollHeight
+    let raf = 0
+    const stop = () => {
+      cancelAnimationFrame(raf)
+      main.removeEventListener('touchstart', stop)
+      main.removeEventListener('wheel', stop)
+    }
+    const tick = () => {
+      apply()
+      stable = main.scrollHeight === lastHeight ? stable + 1 : 0
+      lastHeight = main.scrollHeight
+      if (stable >= 20 || ++frame > 120) return stop()
+      raf = requestAnimationFrame(tick)
+    }
+    main.addEventListener('touchstart', stop, { passive: true })
+    main.addEventListener('wheel', stop, { passive: true })
+    raf = requestAnimationFrame(tick)
   }, [ready, date, navigationType])
 }

@@ -19,7 +19,7 @@ import { ExerciseBlock } from './ExerciseBlock'
 import { ExercisePicker } from './ExercisePicker'
 import { LocationRow } from './LocationRow'
 import {
-  getMainScrollTop,
+  getRecordScrollPos,
   resetMainScrollTop,
   saveRecordScroll,
   useRestoreRecordScroll,
@@ -103,7 +103,7 @@ export function RecordPage() {
               type="button"
               className="text-base font-bold active:text-sky-600"
               onClick={() => {
-                saveRecordScroll(date, getMainScrollTop())
+                saveRecordScroll(date, getRecordScrollPos())
                 navigate(`/history?view=calendar&ym=${date.slice(0, 7)}`, {
                   state: { from: 'record' },
                 })

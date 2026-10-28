@@ -118,7 +118,10 @@ export function ExerciseBlock({
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <section
+      data-record-block={`${exerciseId}|${tagId}|${round}`}
+      className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+    >
       <header className="mb-1 flex items-start gap-2">
         {/* 種目名タップで種目変更(このブロックの全セットを別種目へ)。2 行まで折り返して全文表示 */}
         <button

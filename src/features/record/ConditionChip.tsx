@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router'
 import { getCondition, listPainsByDate } from '../../db/condition'
 import { sleepLabel } from '../../lib/lifeLoad'
-import { getMainScrollTop, saveRecordScroll } from './recordScroll'
+import { getRecordScrollPos, saveRecordScroll } from './recordScroll'
 
 interface ConditionChipProps {
   date: string
@@ -33,7 +33,7 @@ export function ConditionChip({ date }: ConditionChipProps) {
           : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
       }`}
       onClick={() => {
-        saveRecordScroll(date, getMainScrollTop())
+        saveRecordScroll(date, getRecordScrollPos())
         navigate(`/condition?date=${date}`, { state: { from: 'record' } })
       }}
     >
