@@ -69,6 +69,28 @@ export function resetMainScrollTop(): void {
 }
 
 /**
+ * 回数入力済み(reps>0)の最下段セットが画面の縦中央に来るようジャンプする。
+ * 中央にするのは、その下の未入力セット・次の種目も同時に見えるようにするため。
+ * 該当セットが無ければ何もしない(false)。
+ */
+export function scrollToLastDoneSet(): boolean {
+  const main = document.querySelector('main')
+  const rows = main?.querySelectorAll<HTMLElement>('[data-set-done]')
+  const el = rows?.[rows.length - 1]
+  if (!main || !el) return false
+  const rect = el.getBoundingClientRect()
+  const mainRect = main.getBoundingClientRect()
+  main.scrollTop += rect.top - mainRect.top - (main.clientHeight - rect.height) / 2
+  return true
+}
+
+/** 一番下(「＋ 種目を追加」ボタンのある位置)へジャンプする */
+export function scrollToBottom(): void {
+  const main = document.querySelector('main')
+  if (main) main.scrollTop = main.scrollHeight
+}
+
+/**
  * RecordPage 専用: 履歴画面から POP(‹ 記録 / スワイプバック)で戻ってきた時に、
  * データ描画後(ready)へ一度だけスクロール位置を復元する。
  * タブ経由(PUSH)では復元せず、保存値のクリアだけ行う。

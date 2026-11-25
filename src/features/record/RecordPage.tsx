@@ -18,6 +18,7 @@ import { DayNoteRow } from './DayNoteRow'
 import { ExerciseBlock } from './ExerciseBlock'
 import { ExercisePicker } from './ExercisePicker'
 import { LocationRow } from './LocationRow'
+import { RecordJumpButtons } from './RecordJumpButtons'
 import {
   getRecordScrollPos,
   resetMainScrollTop,
@@ -139,7 +140,8 @@ export function RecordPage() {
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col gap-3 p-3">
+      {/* 下の余白(pb-28)は、一番下まで来た時に浮動ボタンが「メニュー」ボタンに重ならないため */}
+      <div className={`flex flex-1 flex-col gap-3 p-3 ${blocks.length > 0 ? 'pb-28' : ''}`}>
         {blocks.length === 0 && sets !== undefined && (
           <p className="py-10 text-center text-sm text-slate-400">
             記録がありません。
@@ -180,6 +182,8 @@ export function RecordPage() {
           </button>
         </div>
       </div>
+
+      {blocks.length > 0 && <RecordJumpButtons hasDoneSet={(sets ?? []).some((s) => s.reps > 0)} />}
 
       {/* 閉じたらアンマウントして選択状態をリセットする */}
       {pickerOpen && (

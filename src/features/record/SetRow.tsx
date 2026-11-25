@@ -114,6 +114,8 @@ export function SetRow({ set, index, prevSet }: SetRowProps) {
   return (
     <div
       ref={setNodeRef}
+      // 記録画面の「続き」ボタンが、回数入力済みの最下段セットを探す目印
+      data-set-done={set.reps > 0 ? '' : undefined}
       className={isDragging ? 'relative z-10 opacity-90' : ''}
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
