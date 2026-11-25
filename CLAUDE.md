@@ -1,6 +1,6 @@
 # 筋トレ記録メモアプリ (Training Memo App)
 
-iPhone で使う筋トレ記録 PWA。既存アプリ「筋トレmemo」(https://kintorememo.jp/) をベースに、独自の差分機能を加えたもの。サーバーレス・完全ローカル・費用ゼロ構成。
+iPhone で使う筋トレ記録 PWA。サーバーレス・完全ローカル・費用ゼロ構成。
 
 ## セッション開始時に必ず行うこと
 
@@ -49,3 +49,8 @@ npm run lint     # ESLint + Prettier チェック
 - **デプロイのたびに `src/app/version.ts` の APP_VERSION を必ずインクリメント**(パッチ +1)。設定画面に表示され、ユーザーが配信版を確認する唯一の手段
 - デプロイ後は Pages のビルド完了(`gh api .../pages/builds/latest` が built)と、配信 HTML のバンドル名一致を確認してから完了報告する(ビルドが building のまま固まることがある → `gh api -X POST .../pages/builds` で再要求)
 - **セッション終了時は `/handoff` を実行**(STATUS.md 更新 + コミット)
+
+## 食事データ(PFCトラッカー)の参照(2026-10-17 追加)
+
+- ユーザーの食事記録が必要なときは、ユーザーレベルの **`pfc-data` スキル**で読み取り専用で取得できる(`node ~/.claude/skills/pfc-data/pfc-read.mjs`)
+- **このリポジトリは公開(public)なので、取得した食事データ・合言葉・接続先をリポジトリ内のファイルに一切書かない**(テストデータ・サンプル・コメントへの転記も禁止)。保存が必要ならスクラッチパッドへ
